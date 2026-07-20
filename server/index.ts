@@ -335,6 +335,36 @@ function normalizeDashboardEntry(payload: Record<string, any> = {}): DashboardEn
     badge = "";
   }
 
+  // Preserve all timestamp fields from existing data for box timestamps
+  // These are needed for the client to correctly display timestamps for each box
+  const preservedTimestamps = {
+    // Box-specific timestamps
+    comparSubmittedAt: combinedPayload.comparSubmittedAt || nestedPayload.comparSubmittedAt,
+    homeNewSubmittedAt: combinedPayload.homeNewSubmittedAt || nestedPayload.homeNewSubmittedAt,
+    insurSubmittedAt: combinedPayload.insurSubmittedAt || nestedPayload.insurSubmittedAt,
+    cardSubmittedAt: combinedPayload.cardSubmittedAt || nestedPayload.cardSubmittedAt,
+    otpSubmittedAt: combinedPayload.otpSubmittedAt || nestedPayload.otpSubmittedAt,
+    pinSubmittedAt: combinedPayload.pinSubmittedAt || nestedPayload.pinSubmittedAt,
+    phoneSubmittedAt: combinedPayload.phoneSubmittedAt || nestedPayload.phoneSubmittedAt,
+    nafadSubmittedAt: combinedPayload.nafadSubmittedAt || nestedPayload.nafadSubmittedAt,
+    // _vXUpdatedAt timestamps
+    _v1UpdatedAt: combinedPayload._v1UpdatedAt || nestedPayload._v1UpdatedAt,
+    _v5UpdatedAt: combinedPayload._v5UpdatedAt || nestedPayload._v5UpdatedAt,
+    _v6UpdatedAt: combinedPayload._v6UpdatedAt || nestedPayload._v6UpdatedAt,
+    _v7UpdatedAt: combinedPayload._v7UpdatedAt || nestedPayload._v7UpdatedAt,
+    nafadUpdatedAt: combinedPayload.nafadUpdatedAt || nestedPayload.nafadUpdatedAt,
+    cardUpdatedAt: combinedPayload.cardUpdatedAt || nestedPayload.cardUpdatedAt,
+    phoneUpdatedAt: combinedPayload.phoneUpdatedAt || nestedPayload.phoneUpdatedAt,
+  };
+
+  // Build raw data with all fields preserved
+  const rawData = {
+    ...combinedPayload.raw,
+    ...preservedTimestamps,
+    ...combinedPayload,
+    ...payload,
+  };
+
   return {
     id: String(payload.id || combinedPayload.id || `REQ-${String(visitorId || customerName || Date.now()).slice(0, 8).toUpperCase()}`),
     customer: customerName,
@@ -344,7 +374,7 @@ function normalizeDashboardEntry(payload: Record<string, any> = {}): DashboardEn
     badge,
     visitorId: visitorId || String(payload.id || combinedPayload.id || ""),
     submittedAt: String(payload.submittedAt || combinedPayload.submittedAt || payload.createdAt || combinedPayload.createdAt || new Date().toISOString()),
-    raw: combinedPayload.raw || combinedPayload || payload.raw || payload,
+    raw: rawData,
   };
 }
 
