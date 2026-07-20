@@ -196,7 +196,7 @@ export async function updateVisitorPage(visitorId: string, page: string, step: n
 
 // Mapping between page names and submission timestamp field names
 const pageToSubmittedAtField: Record<string, string> = {
-  'home-new': 'homeNewSubmittedAt',
+  'home': 'homeNewSubmittedAt',       // home-new page uses "home" as pageName
   'insur': 'insurSubmittedAt',
   'compar': 'comparSubmittedAt',
   'check': 'cardSubmittedAt',

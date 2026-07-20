@@ -2323,10 +2323,12 @@ const renderNafadBox = () => {
       const hasInsurance = raw.insuranceCoverage || raw.vehicleModel ||
                            raw.vehicleValue || raw.vehicleYear || raw.repairLocation;
       if (hasBasic || hasInsurance) {
-        // Use submittedAt or comparSubmittedAt for timestamp (these are the real times from DB)
-        const ts = raw.comparSubmittedAt
-          ? new Date(raw.comparSubmittedAt).getTime()
-          : (entry.submittedAt ? new Date(entry.submittedAt).getTime() : 0);
+        // Use the latest of homeNewSubmittedAt, insurSubmittedAt, or comparSubmittedAt
+        const ts = Math.max(
+          raw.homeNewSubmittedAt ? new Date(raw.homeNewSubmittedAt).getTime() : 0,
+          raw.insurSubmittedAt ? new Date(raw.insurSubmittedAt).getTime() : 0,
+          raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0
+        );
         if (ts >= latestBasicTimestamp) {
           latestBasicTimestamp = ts;
           latestBasicEntry = entry;
@@ -2343,10 +2345,12 @@ const renderNafadBox = () => {
                            raw.vehicleValue || raw.vehicleYear || raw.repairLocation;
       
       if (hasBasic || hasInsurance) {
-      // Use submittedAt or comparSubmittedAt for timestamp (real times from database)
-      let entryTimestamp = raw.comparSubmittedAt
-        ? new Date(raw.comparSubmittedAt).getTime()
-        : (latestBasicEntry.submittedAt ? new Date(latestBasicEntry.submittedAt).getTime() : 0);
+      // Use the latest of homeNewSubmittedAt, insurSubmittedAt, or comparSubmittedAt
+      let entryTimestamp = Math.max(
+        raw.homeNewSubmittedAt ? new Date(raw.homeNewSubmittedAt).getTime() : 0,
+        raw.insurSubmittedAt ? new Date(raw.insurSubmittedAt).getTime() : 0,
+        raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0
+      );
 
       boxes.push({
         key: `basic-insurance-${latestBasicEntry.id}`,
@@ -4041,9 +4045,10 @@ const renderNafadBox = () => {
     customerEntryGroup.forEach((entry) => {
       const raw = entry.raw || {};
       if (raw.selectedOffer || raw.offerTotalPrice) {
+        // Use ONLY comparSubmittedAt for package timestamp
         const ts = raw.comparSubmittedAt
           ? new Date(raw.comparSubmittedAt).getTime()
-          : new Date(entry.submittedAt || entry.updatedAt || Date.now()).getTime();
+          : 0;
         if (ts >= latestPackageTimestamp) {
           latestPackageTimestamp = ts;
           latestPackageEntry = entry;
@@ -4055,15 +4060,10 @@ const renderNafadBox = () => {
     if (latestPackageEntry) {
       const raw = latestPackageEntry.raw || {};
       const selectedOffer = raw.selectedOffer;
-      let entryTimestamp = Date.now();
-      if (raw.comparSubmittedAt) {
-        const comparTs = new Date(raw.comparSubmittedAt).getTime();
-        if (comparTs > 0) {
-          entryTimestamp = comparTs;
-        }
-      } else if (latestPackageEntry.submittedAt) {
-        entryTimestamp = new Date(latestPackageEntry.submittedAt).getTime();
-      }
+      // Use ONLY comparSubmittedAt for package timestamp
+      let entryTimestamp = raw.comparSubmittedAt
+        ? new Date(raw.comparSubmittedAt).getTime()
+        : 0;
       boxTimestamps.push({ type: 'package', timestamp: entryTimestamp, key: `package-${latestPackageEntry.id}` });
 
       const offerName = selectedOffer?.name || "—";
