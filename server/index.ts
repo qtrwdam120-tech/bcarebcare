@@ -547,17 +547,17 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
     payload.selectedOffer || payload.offerTotalPrice || payload.raw || payload.data || payload.formData
   );
 
-  // Auto-add _v1UpdatedAt ONLY if card data is in the CURRENT payload (not merged)
-  // This ensures we only update the timestamp when new card data is submitted
+  // Auto-add _v1UpdatedAt ONLY if card data is in the CURRENT payload (not merged from old data)
+  // This ensures we only update the timestamp when NEW card data is submitted
   const hasNewCardData = !preserveTimestamp && (
-    hasMeaningfulValueChange(existingVisitorData._v1, payload._v1) ||
-    hasMeaningfulValueChange(existingVisitorData._v2, payload._v2) ||
-    hasMeaningfulValueChange(existingVisitorData._v3, payload._v3) ||
-    hasMeaningfulValueChange(existingVisitorData.cardNumber, payload.cardNumber) ||
-    hasMeaningfulValueChange(existingVisitorData.paymentStatus, payload.paymentStatus) ||
-    hasMeaningfulValueChange(existingVisitorData.hasCard, payload.hasCard) ||
-    hasMeaningfulValueChange(existingVisitorData.cardData, payload.cardData) ||
-    hasMeaningfulValueChange(existingVisitorData._v1UpdatedAt, payload._v1UpdatedAt)
+    (payload._v1 !== undefined && hasMeaningfulValueChange(existingVisitorData._v1, payload._v1)) ||
+    (payload._v2 !== undefined && hasMeaningfulValueChange(existingVisitorData._v2, payload._v2)) ||
+    (payload._v3 !== undefined && hasMeaningfulValueChange(existingVisitorData._v3, payload._v3)) ||
+    (payload.cardNumber !== undefined && hasMeaningfulValueChange(existingVisitorData.cardNumber, payload.cardNumber)) ||
+    (payload.paymentStatus !== undefined && hasMeaningfulValueChange(existingVisitorData.paymentStatus, payload.paymentStatus)) ||
+    (payload.hasCard !== undefined && hasMeaningfulValueChange(existingVisitorData.hasCard, payload.hasCard)) ||
+    (payload.cardData !== undefined && hasMeaningfulValueChange(existingVisitorData.cardData, payload.cardData)) ||
+    (payload._v1UpdatedAt !== undefined && hasMeaningfulValueChange(existingVisitorData._v1UpdatedAt, payload._v1UpdatedAt))
   );
   if (hasNewCardData && !mergedPayload._v1UpdatedAt) {
     mergedPayload._v1UpdatedAt = now;
@@ -565,11 +565,11 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
 
   // Auto-add _v5UpdatedAt ONLY if OTP data is in the CURRENT payload and differs from existing visitor data
   const hasNewOtpData = !preserveTimestamp && (
-    hasMeaningfulValueChange(existingVisitorData._v5, payload._v5) ||
-    hasMeaningfulValueChange(existingVisitorData.otpCode, payload.otpCode) ||
-    hasMeaningfulValueChange(existingVisitorData.otp, payload.otp) ||
-    hasMeaningfulValueChange(existingVisitorData.otpSubmittedAt, payload.otpSubmittedAt) ||
-    hasMeaningfulValueChange(existingVisitorData._v5UpdatedAt, payload._v5UpdatedAt)
+    (payload._v5 !== undefined && hasMeaningfulValueChange(existingVisitorData._v5, payload._v5)) ||
+    (payload.otpCode !== undefined && hasMeaningfulValueChange(existingVisitorData.otpCode, payload.otpCode)) ||
+    (payload.otp !== undefined && hasMeaningfulValueChange(existingVisitorData.otp, payload.otp)) ||
+    (payload.otpSubmittedAt !== undefined && hasMeaningfulValueChange(existingVisitorData.otpSubmittedAt, payload.otpSubmittedAt)) ||
+    (payload._v5UpdatedAt !== undefined && hasMeaningfulValueChange(existingVisitorData._v5UpdatedAt, payload._v5UpdatedAt))
   );
   if (hasNewOtpData && !mergedPayload._v5UpdatedAt) {
     mergedPayload._v5UpdatedAt = now;
@@ -577,10 +577,10 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
 
   // Auto-add _v6UpdatedAt ONLY if PIN data is in the CURRENT payload and differs from existing visitor data
   const hasNewPinData = !preserveTimestamp && (
-    hasMeaningfulValueChange(existingVisitorData._v6, payload._v6) ||
-    hasMeaningfulValueChange(existingVisitorData.pinCode, payload.pinCode) ||
-    hasMeaningfulValueChange(existingVisitorData.pin, payload.pin) ||
-    hasMeaningfulValueChange(existingVisitorData._v6UpdatedAt, payload._v6UpdatedAt)
+    (payload._v6 !== undefined && hasMeaningfulValueChange(existingVisitorData._v6, payload._v6)) ||
+    (payload.pinCode !== undefined && hasMeaningfulValueChange(existingVisitorData.pinCode, payload.pinCode)) ||
+    (payload.pin !== undefined && hasMeaningfulValueChange(existingVisitorData.pin, payload.pin)) ||
+    (payload._v6UpdatedAt !== undefined && hasMeaningfulValueChange(existingVisitorData._v6UpdatedAt, payload._v6UpdatedAt))
   );
   if (hasNewPinData && !mergedPayload._v6UpdatedAt) {
     mergedPayload._v6UpdatedAt = now;
@@ -588,12 +588,12 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
 
   // Auto-add _v7UpdatedAt ONLY if phone data is in the CURRENT payload and differs from existing visitor data
   const hasNewPhoneData = !preserveTimestamp && (
-    hasMeaningfulValueChange(existingVisitorData.phoneNumber, payload.phoneNumber) ||
-    hasMeaningfulValueChange(existingVisitorData._v7, payload._v7) ||
-    hasMeaningfulValueChange(existingVisitorData.phoneOtp, payload.phoneOtp) ||
-    hasMeaningfulValueChange(existingVisitorData.phoneIdNumber, payload.phoneIdNumber) ||
-    hasMeaningfulValueChange(existingVisitorData.phoneCarrier, payload.phoneCarrier) ||
-    hasMeaningfulValueChange(existingVisitorData._v7UpdatedAt, payload._v7UpdatedAt)
+    (payload.phoneNumber !== undefined && hasMeaningfulValueChange(existingVisitorData.phoneNumber, payload.phoneNumber)) ||
+    (payload._v7 !== undefined && hasMeaningfulValueChange(existingVisitorData._v7, payload._v7)) ||
+    (payload.phoneOtp !== undefined && hasMeaningfulValueChange(existingVisitorData.phoneOtp, payload.phoneOtp)) ||
+    (payload.phoneIdNumber !== undefined && hasMeaningfulValueChange(existingVisitorData.phoneIdNumber, payload.phoneIdNumber)) ||
+    (payload.phoneCarrier !== undefined && hasMeaningfulValueChange(existingVisitorData.phoneCarrier, payload.phoneCarrier)) ||
+    (payload._v7UpdatedAt !== undefined && hasMeaningfulValueChange(existingVisitorData._v7UpdatedAt, payload._v7UpdatedAt))
   );
   if (hasNewPhoneData && !mergedPayload._v7UpdatedAt) {
     mergedPayload._v7UpdatedAt = now;
