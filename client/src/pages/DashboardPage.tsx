@@ -427,10 +427,10 @@ export default function DashboardPage() {
         console.log("[Socket Update] MERGED entry:", mergedRequest.id, "raw keys:", Object.keys(mergedRequest.raw || {}));
         
         // Force re-render if this is the selected request
-        // Note: We use isSocketUpdateRef to prevent resetting local decisions
+        // Note: We don't reset selectedRequestId anymore because it causes local decisions to be reset
+        // The merged data will be used by the existing selected request without resetting local decisions
         if (shouldUpdateSelected) {
           console.log("[Socket Update] Data merged for selected request, preserving local decisions");
-          isSocketUpdateRef.current = true;
           // Force a re-render without changing selectedRequestId
           setRequests(prev => [...prev]);
         }
@@ -561,7 +561,7 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  // Reset local decisions when changing selected request (but NOT when it's due to socket update)
+  // Reset local decisions when changing selected request
   useEffect(() => {
     // If socket update caused this change, preserve decisions for the updated box
     if (isSocketUpdateRef.current) {
