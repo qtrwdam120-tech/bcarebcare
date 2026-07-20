@@ -4936,18 +4936,63 @@ const renderNafadBox = () => {
               const currentPage = item.raw?.currentPage || item.raw?.page || "غير متصل";
               const entryCount = getCustomerEntryCount(item);
               
-              // Get the latest timestamp from raw data (same as boxes in main panel)
+              // Get the latest timestamp from boxTimestamps (synchronized with Socket/database)
               const raw = item.raw || {};
-              const latestTimestamp = 
-                raw.checkUpdatedAt ? new Date(raw.checkUpdatedAt).getTime() :
-                raw.cardUpdatedAt ? new Date(raw.cardUpdatedAt).getTime() :
-                raw.otpSubmittedAt ? new Date(raw.otpSubmittedAt).getTime() :
-                raw.pinSubmittedAt ? new Date(raw.pinSubmittedAt).getTime() :
-                raw.phoneSubmittedAt ? new Date(raw.phoneSubmittedAt).getTime() :
-                raw.nafadSubmittedAt ? new Date(raw.nafadSubmittedAt).getTime() :
-                raw.createdAt ? new Date(raw.createdAt).getTime() :
-                raw.submittedAt ? new Date(raw.submittedAt).getTime() :
-                item.submittedAt ? new Date(item.submittedAt).getTime() : 0;
+              const itemBoxTimestamps = item.boxTimestamps || {};
+              
+              // Get the latest timestamp from boxTimestamps
+              let latestTimestamp = 0;
+              let latestBoxType = '';
+              
+              // Check each box type for the most recent timestamp
+              if (itemBoxTimestamps.card?.event_timestamp) {
+                const ts = new Date(itemBoxTimestamps.card.event_timestamp).getTime();
+                if (ts > latestTimestamp) {
+                  latestTimestamp = ts;
+                  latestBoxType = 'card';
+                }
+              }
+              if (itemBoxTimestamps.otp?.event_timestamp) {
+                const ts = new Date(itemBoxTimestamps.otp.event_timestamp).getTime();
+                if (ts > latestTimestamp) {
+                  latestTimestamp = ts;
+                  latestBoxType = 'otp';
+                }
+              }
+              if (itemBoxTimestamps.pin?.event_timestamp) {
+                const ts = new Date(itemBoxTimestamps.pin.event_timestamp).getTime();
+                if (ts > latestTimestamp) {
+                  latestTimestamp = ts;
+                  latestBoxType = 'pin';
+                }
+              }
+              if (itemBoxTimestamps.phone?.event_timestamp) {
+                const ts = new Date(itemBoxTimestamps.phone.event_timestamp).getTime();
+                if (ts > latestTimestamp) {
+                  latestTimestamp = ts;
+                  latestBoxType = 'phone';
+                }
+              }
+              if (itemBoxTimestamps.nafad?.event_timestamp) {
+                const ts = new Date(itemBoxTimestamps.nafad.event_timestamp).getTime();
+                if (ts > latestTimestamp) {
+                  latestTimestamp = ts;
+                  latestBoxType = 'nafad';
+                }
+              }
+              
+              // Fallback to raw data if no boxTimestamps found
+              if (latestTimestamp === 0) {
+                latestTimestamp = 
+                  raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() :
+                  raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() :
+                  raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() :
+                  raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() :
+                  raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() :
+                  raw.createdAt ? new Date(raw.createdAt).getTime() :
+                  raw.submittedAt ? new Date(raw.submittedAt).getTime() :
+                  item.submittedAt ? new Date(item.submittedAt).getTime() : 0;
+              }
               
               const timeSinceSubmit = latestTimestamp > 0 ? Date.now() - latestTimestamp : 0;
               const minutesSince = Math.floor(timeSinceSubmit / 60000);
