@@ -257,6 +257,7 @@ async function initDatabase() {
             updated TEXT,
             badge TEXT,
             submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             raw JSONB NOT NULL DEFAULT '{}'::jsonb
           );
         `,
@@ -269,6 +270,7 @@ async function initDatabase() {
           { name: "updated", definition: "TEXT" },
           { name: "badge", definition: "TEXT" },
           { name: "submitted_at", definition: "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
+          { name: "created_at", definition: "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
           { name: "raw", definition: "JSONB NOT NULL DEFAULT '{}'::jsonb" },
         ] as ColumnSpec[],
       },
@@ -670,11 +672,12 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
   const normalized = normalizeDashboardEntry(mergedPayload);
   
   try {
-    const existingResult = await pool.query<{ submittedAt: string | null }>(
-      `SELECT submitted_at AS "submittedAt" FROM dashboard_requests WHERE id = $1`,
+    const existingResult = await pool.query<{ submittedAt: string | null; createdAt: string | null }>(
+      `SELECT submitted_at AS "submittedAt", created_at AS "createdAt" FROM dashboard_requests WHERE id = $1`,
       [normalized.id],
     );
     const existingSubmittedAt = existingResult.rows[0]?.submittedAt || null;
+    const existingCreatedAt = existingResult.rows[0]?.createdAt || null;
     const incomingTimestamp = payload.submittedAt || payload.updatedAt || payload.createdAt || payload.homeCompletedAt || payload.comparCompletedAt ||
       payload._v1UpdatedAt || payload._v5UpdatedAt || payload._v6UpdatedAt || payload._v7UpdatedAt || payload.nafadUpdatedAt ||
       normalized.submittedAt || now;
@@ -686,8 +689,8 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
 
     await pool.query(
       `
-        INSERT INTO dashboard_requests (id, visitor_id, customer, status, stage, updated, badge, submitted_at, raw)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO dashboard_requests (id, visitor_id, customer, status, stage, updated, badge, submitted_at, created_at, raw)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (id) DO UPDATE SET
           visitor_id = EXCLUDED.visitor_id,
           customer = EXCLUDED.customer,
@@ -696,6 +699,7 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
           updated = EXCLUDED.updated,
           badge = EXCLUDED.badge,
           submitted_at = dashboard_requests.submitted_at,
+          created_at = dashboard_requests.created_at,
           raw = EXCLUDED.raw;
       `,
       [
@@ -707,6 +711,7 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
         normalized.updated,
         normalized.badge,
         persistedSubmittedAt,
+        existingCreatedAt || now, // Preserve existing created_at or set new one
         mergedPayload, // Store the merged payload with all visitor data
       ],
     );
