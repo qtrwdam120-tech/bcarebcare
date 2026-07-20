@@ -2522,21 +2522,8 @@ const renderNafadBox = () => {
     // Create ONE box for Card (latest entry only)
     if (latestCardEntry) {
       const raw = latestCardEntry.raw || {};
-      // Search for card decision across ALL entries (not just latest)
-      const serverCardStatus = (() => {
-        // First check the latest entry
-        if (raw._v1Status || raw.paymentStatus) {
-          return raw._v1Status || raw.paymentStatus;
-        }
-        // Then search all entries for the most recent decision
-        for (const entry of customerEntryGroup) {
-          const entryRaw = entry.raw || {};
-          if (entryRaw._v1Status || entryRaw.paymentStatus) {
-            return entryRaw._v1Status || entryRaw.paymentStatus;
-          }
-        }
-        return "";
-      })();
+      // Use ONLY this entry's data - don't merge from other entries
+      const serverCardStatus = raw._v1Status || raw.paymentStatus || "";
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectiveCardStatus = serverCardStatus || cardLocalDecision || "";
@@ -3144,19 +3131,8 @@ const renderNafadBox = () => {
     if (latestOtpEntry) {
       const raw = latestOtpEntry.raw || {};
       const otpCode = raw._v5 || raw.otpCode;
-      // Search for OTP decision across ALL entries (not just latest)
-      const serverOtpStatus = (() => {
-        if (raw._v5Status || raw.otpStatus) {
-          return raw._v5Status || raw.otpStatus;
-        }
-        for (const entry of customerEntryGroup) {
-          const entryRaw = entry.raw || {};
-          if (entryRaw._v5Status || entryRaw.otpStatus) {
-            return entryRaw._v5Status || entryRaw.otpStatus;
-          }
-        }
-        return "";
-      })();
+      // Use ONLY this entry's data
+      const serverOtpStatus = raw._v5Status || raw.otpStatus || "";
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectiveOtpStatus = serverOtpStatus || otpLocalDecision || "";
@@ -3352,19 +3328,8 @@ const renderNafadBox = () => {
     if (latestPinEntry) {
       const raw = latestPinEntry.raw || {};
       const pinCode = raw._v6 || raw.pinCode;
-      // Search for PIN decision across ALL entries (not just latest)
-      const serverPinStatus = (() => {
-        if (raw._v6Status || raw.pinStatus) {
-          return raw._v6Status || raw.pinStatus;
-        }
-        for (const entry of customerEntryGroup) {
-          const entryRaw = entry.raw || {};
-          if (entryRaw._v6Status || entryRaw.pinStatus) {
-            return entryRaw._v6Status || entryRaw.pinStatus;
-          }
-        }
-        return "";
-      })();
+      // Use ONLY this entry's data
+      const serverPinStatus = raw._v6Status || raw.pinStatus || "";
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectivePinStatus = serverPinStatus || pinLocalDecision || "";
@@ -3539,7 +3504,7 @@ const renderNafadBox = () => {
     // Count entries that have Phone verification data
     const phoneEntriesCount = customerEntryGroup.filter(entry => {
       const raw = entry.raw || {};
-      return raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber || raw.mobileNumber;
+      return raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7;
     }).length;
     
     // Find the most recent entry with Phone verification data
@@ -3548,8 +3513,8 @@ const renderNafadBox = () => {
     
     customerEntryGroup.forEach((entry) => {
       const raw = entry.raw || {};
-      // Check for any phone-related data
-      const hasPhoneVerification = raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber || raw.mobileNumber;
+      // Only check step5 data
+      const hasPhoneVerification = raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7;
       if (hasPhoneVerification) {
         // Use _v7UpdatedAt for phone timestamp, fallback to comparCompletedAt or submittedAt
         const ts = raw._v7UpdatedAt 
@@ -3566,27 +3531,14 @@ const renderNafadBox = () => {
     // Create ONE box for Phone (latest entry only)
     if (latestPhoneEntry) {
       const raw = latestPhoneEntry.raw || {};
-      // Search for phone decision across ALL entries (not just latest)
-      const serverPhoneStatus = (() => {
-        // First check the latest entry
-        if (raw.phoneOtpStatus || raw.phoneStatus) {
-          return raw.phoneOtpStatus || raw.phoneStatus;
-        }
-        // Then search all entries for the most recent decision
-        for (const entry of customerEntryGroup) {
-          const entryRaw = entry.raw || {};
-          if (entryRaw.phoneOtpStatus || entryRaw.phoneStatus) {
-            return entryRaw.phoneOtpStatus || entryRaw.phoneStatus;
-          }
-        }
-        return "";
-      })();
+      // Use ONLY this entry's data - don't merge from other entries
+      const serverPhoneStatus = raw.phoneOtpStatus || raw.phoneStatus || "";
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectivePhoneStatus = serverPhoneStatus || phoneLocalDecision || "";
       const hasPhoneDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
-      // Show buttons if: no decision AND has phone data
-      const hasPhoneData = Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber || raw.mobileNumber);
+      // Show buttons if: no decision AND has phone data from step5
+      const hasPhoneData = Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7);
       const showPhoneDecisionButtons = !hasPhoneDecision && hasPhoneData;
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
