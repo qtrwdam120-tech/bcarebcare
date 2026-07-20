@@ -1811,6 +1811,23 @@ async function startServer() {
     res.sendFile(builtIndexPath);
   });
 
+  // TEMP ENDPOINT: Delete all data from database (for testing)
+  app.post("/api/admin/delete-all-data", async (_req, res) => {
+    try {
+      await pool.query("DELETE FROM dashboard_requests");
+      await pool.query("DELETE FROM visitors");
+      
+      // Reset sequences
+      await pool.query("ALTER SEQUENCE visitors_id_seq RESTART WITH 1");
+      await pool.query("ALTER SEQUENCE dashboard_requests_id_seq RESTART WITH 1");
+      
+      res.json({ success: true, message: "All data deleted" });
+    } catch (error) {
+      console.error("Delete error:", error);
+      res.status(500).json({ error: "Failed to delete data" });
+    }
+  });
+
   const port = process.env.PORT || 3002;
 
   server.listen(port, () => {
