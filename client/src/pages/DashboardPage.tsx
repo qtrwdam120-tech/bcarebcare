@@ -288,10 +288,33 @@ export default function DashboardPage() {
       }
     });
     
-    // Convert to array and sort by most recent
+    // Convert to array and sort by most recent using ALL box timestamps
     return Array.from(customerMap.values()).sort((a, b) => {
-      const timeA = new Date(a.submittedAt || a.updatedAt || 0).getTime();
-      const timeB = new Date(b.submittedAt || b.updatedAt || 0).getTime();
+      const getLatestTimestamp = (item: RequestItem) => {
+        const raw = item.raw || {};
+        const allTimestamps = [
+          raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
+          raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
+          raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
+          raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
+          raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
+          raw.cardSubmittedAt ? new Date(raw.cardSubmittedAt).getTime() : 0,
+          raw.otpSubmittedAt ? new Date(raw.otpSubmittedAt).getTime() : 0,
+          raw.pinSubmittedAt ? new Date(raw.pinSubmittedAt).getTime() : 0,
+          raw.phoneSubmittedAt ? new Date(raw.phoneSubmittedAt).getTime() : 0,
+          raw.nafadSubmittedAt ? new Date(raw.nafadSubmittedAt).getTime() : 0,
+          raw.homeNewSubmittedAt ? new Date(raw.homeNewSubmittedAt).getTime() : 0,
+          raw.insurSubmittedAt ? new Date(raw.insurSubmittedAt).getTime() : 0,
+          raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0,
+          raw.createdAt ? new Date(raw.createdAt).getTime() : 0,
+          raw.submittedAt ? new Date(raw.submittedAt).getTime() : 0,
+          item.submittedAt ? new Date(item.submittedAt).getTime() : 0,
+          item.updatedAt ? new Date(item.updatedAt).getTime() : 0,
+        ].filter(t => t > 0);
+        return allTimestamps.length > 0 ? Math.max(...allTimestamps) : 0;
+      };
+      const timeA = getLatestTimestamp(a);
+      const timeB = getLatestTimestamp(b);
       return timeB - timeA;
     });
   }, [sortedRequests]);
@@ -4783,17 +4806,19 @@ const renderNafadBox = () => {
               const currentPage = item.raw?.currentPage || item.raw?.page || "غير متصل";
               const entryCount = getCustomerEntryCount(item);
               
-              // Get timestamp from raw data only
+              // Get latest timestamp from ALL box timestamps (newest first)
               const raw = item.raw || {};
-              const latestTimestamp = 
-                raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() :
-                raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() :
-                raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() :
-                raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() :
-                raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() :
-                raw.createdAt ? new Date(raw.createdAt).getTime() :
-                raw.submittedAt ? new Date(raw.submittedAt).getTime() :
-                item.submittedAt ? new Date(item.submittedAt).getTime() : 0;
+              const allTimestamps = [
+                raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
+                raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
+                raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
+                raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
+                raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
+                raw.createdAt ? new Date(raw.createdAt).getTime() : 0,
+                raw.submittedAt ? new Date(raw.submittedAt).getTime() : 0,
+                item.submittedAt ? new Date(item.submittedAt).getTime() : 0,
+              ].filter(t => t > 0);
+              const latestTimestamp = allTimestamps.length > 0 ? Math.max(...allTimestamps) : 0;
               
               const timeSinceSubmit = latestTimestamp > 0 ? Date.now() - latestTimestamp : 0;
               const minutesSince = Math.floor(timeSinceSubmit / 60000);
