@@ -97,7 +97,6 @@ export default function DashboardPage() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "cards">("all");
-  const [nowTick, setNowTick] = useState<number>(Date.now());
   const [pinInput, setPinInput] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
@@ -113,7 +112,6 @@ export default function DashboardPage() {
   const [settingsTab, setSettingsTab] = useState<"security" | "cards">("security");
   const [blockedCards, setBlockedCards] = useState<string[]>([]);
   const [newBlockedCard, setNewBlockedCard] = useState("");
-  const [currentTime, setCurrentTime] = useState(Date.now());
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
   
   // Local decision states for old boxes
@@ -143,18 +141,9 @@ export default function DashboardPage() {
   const [boxTimestamps, setBoxTimestamps] = useState<Record<string, BoxTimestamp>>({});
   
   const socketRef = useRef<Socket | null>(null);
-  const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
   const socketUpdatedBoxRef = useRef<string | null>(null);
-
-  // Update current time every minute for timer display
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, []);
 
   // Fix timestamps for existing records on page load
   useEffect(() => {
@@ -519,15 +508,6 @@ export default function DashboardPage() {
       socketRef.current = null;
     };
   }, [handleSocketUpdate]);
-
-  // Update current time every second for timers
-  useEffect(() => {
-    const interval = setInterval(() => {
-      currentTimeRef.current = Date.now();
-      setNowTick(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Close header menu when clicking outside
   useEffect(() => {
@@ -4935,7 +4915,7 @@ const renderNafadBox = () => {
                 raw.submittedAt ? new Date(raw.submittedAt).getTime() :
                 item.submittedAt ? new Date(item.submittedAt).getTime() : 0;
               
-              const timeSinceSubmit = latestTimestamp > 0 ? currentTime - latestTimestamp : 0;
+              const timeSinceSubmit = latestTimestamp > 0 ? Date.now() - latestTimestamp : 0;
               const minutesSince = Math.floor(timeSinceSubmit / 60000);
               const hoursSince = Math.floor(minutesSince / 60);
               const daysSince = Math.floor(hoursSince / 24);
