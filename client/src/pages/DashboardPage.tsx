@@ -18,7 +18,18 @@ type RequestItem = {
 
 type EntryWithType = RequestItem & { entryType?: 'current' | 'new' | 'update' };
 
-const DASHBOARD_BACKEND_URL = import.meta.env.VITE_BACKEND_TARGET || "http://127.0.0.1:3002";
+// Use relative URL in production, or explicit URL from env
+const getDashboardBackendUrl = () => {
+  if (import.meta.env.VITE_BACKEND_TARGET) {
+    return import.meta.env.VITE_BACKEND_TARGET;
+  }
+  // In production, use current host with default port
+  if (typeof window !== 'undefined' && window.location.hostname !== '127.0.0.1' && window.location.hostname !== 'localhost') {
+    return window.location.origin;
+  }
+  return "http://127.0.0.1:3002";
+};
+const DASHBOARD_BACKEND_URL = getDashboardBackendUrl();
 
 const countryFlags: Record<string, string> = {
   sa: "🇸🇦", ksa: "🇸🇦", saudi: "🇸🇦", "saudi arabia": "🇸🇦", السعودية: "🇸🇦",
