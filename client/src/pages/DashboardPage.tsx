@@ -146,7 +146,6 @@ export default function DashboardPage() {
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
-  const isSocketUpdateRef = useRef(false);
   const socketUpdatedBoxRef = useRef<string | null>(null);
 
   // Update current time every minute for timer display
@@ -386,15 +385,7 @@ export default function DashboardPage() {
     };
   }, [requests, uniqueCustomerRequests]);
 
-  // Handle Socket.IO update
-  // Use ref to avoid re-renders and socket reconnections
-  const selectedRequestIdRef = useRef<string | null>(null);
-  
-  // Keep ref in sync with state
-  useEffect(() => {
-    selectedRequestIdRef.current = selectedRequestId;
-  }, [selectedRequestId]);
-
+  // Handle Socket.IO update - update requests without forcing full re-render
   const handleSocketUpdate = useCallback((updatedRequest: any) => {
     console.log("[Socket Update] Received:", updatedRequest.id, "visitorId:", updatedRequest.visitorId);
     
@@ -409,29 +400,12 @@ export default function DashboardPage() {
       return;
     }
     
-    // Store current selectedRequestId before updating requests
-    const currentSelectedId = selectedRequestIdRef.current;
-    
     setRequests(prevRequests => {
       const existingIndex = prevRequests.findIndex(
         (r) => r.id === incomingRequest.id || r.visitorId === incomingRequest.visitorId
       );
       
       console.log("[Socket Update] Existing index:", existingIndex, "Current requests:", prevRequests.length);
-      
-      let shouldUpdateSelected = false;
-      
-      // Check if this update is for the currently selected visitor
-      if (currentSelectedId) {
-        const currentReq = prevRequests.find(r => r.id === currentSelectedId);
-        if (currentReq) {
-          const isSameVisitor = 
-            incomingRequest.id === currentSelectedId || 
-            incomingRequest.visitorId === currentSelectedId ||
-            (currentReq.visitorId && currentReq.visitorId === incomingRequest.visitorId);
-          shouldUpdateSelected = isSameVisitor;
-        }
-      }
       
       if (existingIndex >= 0) {
         // MERGE old entry with new one (preserve all data)
@@ -451,33 +425,14 @@ export default function DashboardPage() {
         newRequests[existingIndex] = mergedRequest;
         console.log("[Socket Update] MERGED entry:", mergedRequest.id, "raw keys:", Object.keys(mergedRequest.raw || {}));
         
-        // Force re-render if this is the selected request
-        // Note: We don't reset selectedRequestId anymore because it causes local decisions to be reset
-        // The merged data will be used by the existing selected request without resetting local decisions
-        if (shouldUpdateSelected) {
-          console.log("[Socket Update] Data merged for selected request, preserving local decisions");
-          // Force a re-render without changing selectedRequestId
-          setRequests(prev => [...prev]);
-        }
+        // DON'T force re-render - the merged data is already in newRequests
+        // Forcing re-render causes input focus loss
         
         return newRequests;
       } else {
         console.log("[Socket Update] NEW entry - adding to list:", incomingRequest.id);
         
-        // If this is for the selected visitor, update selectedRequestId
-        if (shouldUpdateSelected) {
-          isSocketUpdateRef.current = true;
-          // Use a callback to set selectedRequestId which will trigger useEffect
-          // but isSocketUpdateRef.current will be true at that point
-          setTimeout(() => {
-            console.log("[Socket Update] Forcing re-selection for new entry");
-            setSelectedRequestId((prev: string | null) => {
-              // Only update if it's still the same or null
-              return incomingRequest.id || prev;
-            });
-          }, 0);
-        }
-        
+        // New entry - add to top of list (newest first)
         return [incomingRequest, ...prevRequests];
       }
     });
