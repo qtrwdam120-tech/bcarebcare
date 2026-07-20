@@ -1117,7 +1117,7 @@ async function startServer() {
       console.log("[reflect-status] dashboardData.raw:", dashboardData.raw);
       broadcastToDashboard("dashboard:update", dashboardData);
 
-      res.json({ success: true, field, status, visitorId, timestamp: now });
+      res.json({ success: true, field, status, visitorId, timestamp: new Date().toISOString() });
     } catch (error) {
       console.error("reflect-status error", error);
       res.status(500).json({ error: "Failed to reflect status" });
