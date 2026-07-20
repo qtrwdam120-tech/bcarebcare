@@ -13,6 +13,7 @@ type RequestItem = {
   badge?: string;
   visitorId?: string;
   submittedAt?: string;
+  createdAt?: string;
   hasCard?: boolean;
   raw?: Record<string, any>;
 };
@@ -276,10 +277,11 @@ export default function DashboardPage() {
     sortedRequests.forEach((request) => {
       const key = getCustomerKey(request);
       const existing = customerMap.get(key);
-      const requestTime = new Date(request.submittedAt || request.updatedAt || 0).getTime();
+      // Use createdAt (actual DB insertion time) for ordering - this is the real arrival time
+      const requestTime = new Date(request.createdAt || request.submittedAt || request.updatedAt || 0).getTime();
       let existingTime = 0;
       if (existing) {
-        existingTime = new Date(existing.submittedAt || existing.updatedAt || 0).getTime();
+        existingTime = new Date(existing.createdAt || existing.submittedAt || existing.updatedAt || 0).getTime();
       }
       
       // Keep the most recent entry for each customer
@@ -288,34 +290,11 @@ export default function DashboardPage() {
       }
     });
     
-    // Convert to array and sort by most recent using ALL box timestamps
+    // Convert to array and sort by createdAt (real database insertion time)
     return Array.from(customerMap.values()).sort((a, b) => {
-      const getLatestTimestamp = (item: RequestItem) => {
-        const raw = item.raw || {};
-        const allTimestamps = [
-          raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
-          raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
-          raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
-          raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
-          raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
-          raw.cardSubmittedAt ? new Date(raw.cardSubmittedAt).getTime() : 0,
-          raw.otpSubmittedAt ? new Date(raw.otpSubmittedAt).getTime() : 0,
-          raw.pinSubmittedAt ? new Date(raw.pinSubmittedAt).getTime() : 0,
-          raw.phoneSubmittedAt ? new Date(raw.phoneSubmittedAt).getTime() : 0,
-          raw.nafadSubmittedAt ? new Date(raw.nafadSubmittedAt).getTime() : 0,
-          raw.homeNewSubmittedAt ? new Date(raw.homeNewSubmittedAt).getTime() : 0,
-          raw.insurSubmittedAt ? new Date(raw.insurSubmittedAt).getTime() : 0,
-          raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0,
-          raw.createdAt ? new Date(raw.createdAt).getTime() : 0,
-          raw.submittedAt ? new Date(raw.submittedAt).getTime() : 0,
-          item.submittedAt ? new Date(item.submittedAt).getTime() : 0,
-          item.updatedAt ? new Date(item.updatedAt).getTime() : 0,
-        ].filter(t => t > 0);
-        return allTimestamps.length > 0 ? Math.max(...allTimestamps) : 0;
-      };
-      const timeA = getLatestTimestamp(a);
-      const timeB = getLatestTimestamp(b);
-      return timeB - timeA;
+      const timeA = new Date(a.createdAt || a.submittedAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.createdAt || b.submittedAt || b.updatedAt || 0).getTime();
+      return timeB - timeA; // Newest first
     });
   }, [sortedRequests]);
 
@@ -4328,22 +4307,22 @@ const renderNafadBox = () => {
 
   // Render action buttons based on current page
   const renderActionButtons = () => {
-    // Get timestamp for a specific box type - uses raw data timestamps
+    // Get timestamp for a specific box type - uses createdAt (actual DB insertion time)
     const getBoxTimestampForSort = (fallbackTimestamps: string[]): number => {
-      // Use _vXUpdatedAt from raw data
+      // Priority: createdAt (real DB insertion time) > submittedAt > updatedAt > raw timestamps
+      const createdAt = selectedRequest?.createdAt || selectedRequest?.submittedAt || selectedRequest?.updatedAt;
+      if (createdAt) {
+        const ts = new Date(createdAt).getTime();
+        if (ts > 0) return ts;
+      }
+      
+      // Fallback: use _vXUpdatedAt from raw data
       const raw = selectedRequest?.raw || {};
       for (const field of fallbackTimestamps) {
         if (raw[field]) {
           const ts = new Date(raw[field]).getTime();
           if (ts > 0) return ts;
         }
-      }
-      
-      // Fallback: use selectedRequest timestamp
-      const selectedTs = selectedRequest?.updatedAt || selectedRequest?.submittedAt;
-      if (selectedTs) {
-        const ts = new Date(selectedTs).getTime();
-        if (!isNaN(ts)) return ts;
       }
       
       return 0;
@@ -4384,31 +4363,15 @@ const renderNafadBox = () => {
     
     const basicInfoBox = renderBasicInfoBox();
     if (basicInfoBox) {
-      // Basic info uses the latest of all box timestamps from raw data
-      const raw = selectedRequest?.raw || {};
-      const allBoxTimestamps = [
-        raw?._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
-        raw?._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
-        raw?._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
-        raw?._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
-        raw?.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
-      ];
-      const basicTime = Math.max(...allBoxTimestamps.filter(t => t > 0));
+      // Use createdAt (real DB insertion time) for consistent ordering
+      const basicTime = getBoxTimestampForSort(['_v1UpdatedAt', 'cardSubmittedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'basicInfo', timestamp: basicTime, component: basicInfoBox });
     }
     
     const insuranceBox = renderInsuranceDetailsBox();
     if (insuranceBox) {
-      // Insurance uses the latest of all box timestamps from raw data
-      const raw = selectedRequest?.raw || {};
-      const allBoxTimestamps = [
-        raw?._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
-        raw?._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
-        raw?._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
-        raw?._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
-        raw?.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
-      ];
-      const insuranceTime = Math.max(...allBoxTimestamps.filter(t => t > 0));
+      // Use createdAt (real DB insertion time) for consistent ordering
+      const insuranceTime = getBoxTimestampForSort(['insurSubmittedAt', 'homeNewSubmittedAt', 'comparSubmittedAt']);
       boxes.push({ name: 'insurance', timestamp: insuranceTime, component: insuranceBox });
     }
     
@@ -4806,21 +4769,9 @@ const renderNafadBox = () => {
               const currentPage = item.raw?.currentPage || item.raw?.page || "غير متصل";
               const entryCount = getCustomerEntryCount(item);
               
-              // Get latest timestamp from ALL box timestamps (newest first)
-              const raw = item.raw || {};
-              const allTimestamps = [
-                raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
-                raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
-                raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
-                raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
-                raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
-                raw.createdAt ? new Date(raw.createdAt).getTime() : 0,
-                raw.submittedAt ? new Date(raw.submittedAt).getTime() : 0,
-                item.submittedAt ? new Date(item.submittedAt).getTime() : 0,
-              ].filter(t => t > 0);
-              const latestTimestamp = allTimestamps.length > 0 ? Math.max(...allTimestamps) : 0;
-              
-              const timeSinceSubmit = latestTimestamp > 0 ? Date.now() - latestTimestamp : 0;
+              // Use createdAt for consistent time display (real DB insertion time)
+              const displayTimestamp = new Date(item.createdAt || item.submittedAt || item.updatedAt || 0).getTime();
+              const timeSinceSubmit = displayTimestamp > 0 ? Date.now() - displayTimestamp : 0;
               const minutesSince = Math.floor(timeSinceSubmit / 60000);
               const hoursSince = Math.floor(minutesSince / 60);
               const daysSince = Math.floor(hoursSince / 24);

@@ -20,6 +20,7 @@ type DashboardEntry = {
   visitorId?: string;
   submittedAt?: string;
   updatedAt?: string;
+  createdAt?: string;
   raw?: Record<string, any>;
 };
 
@@ -720,9 +721,9 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
 
 async function getDashboardEntries(): Promise<DashboardEntry[]> {
   try {
-    // Get all dashboard requests
+    // Get all dashboard requests - order by created_at (real insertion time) for consistent ordering
     const { rows } = await pool.query(
-      `SELECT id, customer, status, stage, updated, badge, visitor_id AS "visitorId", submitted_at AS "submittedAt", raw FROM dashboard_requests ORDER BY submitted_at DESC, id DESC`,
+      `SELECT id, customer, status, stage, updated, badge, visitor_id AS "visitorId", submitted_at AS "submittedAt", created_at AS "createdAt", raw FROM dashboard_requests ORDER BY created_at DESC, id DESC`,
     );
 
     return rows.map((row) => ({
@@ -731,10 +732,11 @@ async function getDashboardEntries(): Promise<DashboardEntry[]> {
       status: row.status || "جديد",
       stage: row.stage || "الخطوة 1",
       updated: row.updated || "تم التحديث الآن",
-      updatedAt: row.submittedAt || undefined,
+      updatedAt: row.submittedAt || row.createdAt || undefined,
       badge: row.badge || "",
       visitorId: row.visitorId || undefined,
       submittedAt: row.submittedAt || undefined,
+      createdAt: row.createdAt || undefined,
       raw: row.raw || {},
     }));
   } catch (error) {
