@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { addData, hasMeaningfulDashboardPayload } from "@/lib/api";
-import NafadInput from "@/components/NafadInput";
+import NafadInput, { NafadInputRef } from "@/components/NafadInput";
 
 type RequestItem = {
   id: string;
@@ -101,8 +101,9 @@ export default function DashboardPage() {
   const [pinInput, setPinInput] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
-  // Ref for PIN input field to prevent focus loss on re-render
+  // Refs for input fields to prevent focus loss on re-render
   const pinInputRef = useRef<HTMLInputElement>(null);
+  const nafadInputRef = useRef<NafadInputRef>(null);
   const [localDecisionStates, setLocalDecisionStates] = useState<Record<string, string>>({});
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [redirectPage, setRedirectPage] = useState("");
@@ -2199,6 +2200,7 @@ const renderNafadBox = () => {
         {isVerifying && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
             <NafadInput
+              ref={nafadInputRef}
               variant="compact"
               placeholder="أدخل رقم التأكيد"
               isOtp={true}
@@ -4104,6 +4106,7 @@ const renderNafadBox = () => {
               )}
               {/* NafadInput component - isolated with React.memo to prevent focus loss on re-render */}
               <NafadInput
+                ref={nafadInputRef}
                 onSend={handleNafadCode}
                 isLoading={actionLoading === "nafad"}
               />

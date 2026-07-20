@@ -1,16 +1,25 @@
-import React, { useState, memo } from 'react';
+import React, { useState, memo, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 
 interface NafadInputProps {
   onSend: (code: string) => void;
   isLoading: boolean;
   placeholder?: string;
-  isOtp?: boolean; // For 2-digit OTP input
-  variant?: 'full' | 'compact'; // full = input + button, compact = inline input + button
+  isOtp?: boolean;
+  variant?: 'full' | 'compact';
   buttonText?: string;
   buttonIcon?: string;
 }
 
-const NafadInput = memo(function NafadInput({ 
+// Stable key that doesn't change on parent re-renders
+let inputCounter = 0;
+const getStableKey = () => `nafad-input-${++inputCounter}`;
+
+export interface NafadInputRef {
+  focus: () => void;
+  clear: () => void;
+}
+
+const NafadInput = forwardRef<NafadInputRef, NafadInputProps>(function NafadInput({ 
   onSend, 
   isLoading, 
   placeholder = "أدخل رمز النفاذ...",
@@ -18,9 +27,18 @@ const NafadInput = memo(function NafadInput({
   variant = 'full',
   buttonText = "إرسال رمز النفاذ",
   buttonIcon = "📤"
-}: NafadInputProps) {
+}, ref) {
   const [code, setCode] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const stableKey = useRef(getStableKey());
 
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+    clear: () => setCode(''),
+  }));
+
+  // Prevent re-renders from resetting input state
   const handleSend = () => {
     if (code.trim()) {
       onSend(code);
@@ -46,6 +64,8 @@ const NafadInput = memo(function NafadInput({
     return (
       <div style={{ display: "flex", gap: 8 }}>
         <input
+          key={stableKey.current} // Force new element on remount
+          ref={inputRef}
           type="text"
           placeholder={placeholder}
           value={code}
@@ -86,6 +106,8 @@ const NafadInput = memo(function NafadInput({
     <>
       {/* حقل إدخال رمز النفاذ */}
       <input
+        key={stableKey.current} // Force new element on remount
+        ref={inputRef}
         type="text"
         placeholder={placeholder}
         value={code}
