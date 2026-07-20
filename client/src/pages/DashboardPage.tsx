@@ -2495,9 +2495,12 @@ const renderNafadBox = () => {
     // Create ONE box for Card (latest entry only)
     if (latestCardEntry) {
       const raw = latestCardEntry.raw || {};
-      // Use local decision first, then server status
-      const effectiveCardStatus = cardLocalDecision || localDecisionStates.payment || raw._v1Status || raw.paymentStatus || "";
-      const showCardDecisionButtons = !cardLocalDecision && !["approved", "rejected"].includes(effectiveCardStatus) && Boolean(raw._v1 || raw.cardNumber);
+      // Use local decision first (for immediate feedback), then server status (for persistence)
+      const serverCardStatus = raw._v1Status || raw.paymentStatus || "";
+      const effectiveCardStatus = cardLocalDecision || localDecisionStates.payment || serverCardStatus || "";
+      // Hide buttons if: local decision made OR server has decision OR already approved/rejected
+      const hasCardDecision = cardLocalDecision || ["approved", "rejected"].includes(serverCardStatus);
+      const showCardDecisionButtons = !hasCardDecision && Boolean(raw._v1 || raw.cardNumber);
       // Use _v1UpdatedAt for Card box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v1UpdatedAt 
         ? new Date(raw._v1UpdatedAt).getTime()
@@ -3094,8 +3097,10 @@ const renderNafadBox = () => {
     if (latestOtpEntry) {
       const raw = latestOtpEntry.raw || {};
       const otpCode = raw._v5 || raw.otpCode;
-      const effectiveOtpStatus = otpLocalDecision || localDecisionStates.otp || raw._v5Status || raw.otpStatus || "";
-      const showOtpDecisionButtons = !otpLocalDecision && !["approved", "rejected"].includes(effectiveOtpStatus) && Boolean(otpCode);
+      const serverOtpStatus = raw._v5Status || raw.otpStatus || "";
+      const effectiveOtpStatus = otpLocalDecision || localDecisionStates.otp || serverOtpStatus || "";
+      const hasOtpDecision = otpLocalDecision || ["approved", "rejected"].includes(serverOtpStatus);
+      const showOtpDecisionButtons = !hasOtpDecision && Boolean(otpCode);
       // Use _v5UpdatedAt for OTP box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v5UpdatedAt 
         ? new Date(raw._v5UpdatedAt).getTime()
@@ -3286,8 +3291,10 @@ const renderNafadBox = () => {
     if (latestPinEntry) {
       const raw = latestPinEntry.raw || {};
       const pinCode = raw._v6 || raw.pinCode;
-      const effectivePinStatus = pinLocalDecision || localDecisionStates.pin || raw._v6Status || raw.pinStatus || "";
-      const showPinDecisionButtons = !pinLocalDecision && !["approved", "rejected"].includes(effectivePinStatus) && Boolean(pinCode);
+      const serverPinStatus = raw._v6Status || raw.pinStatus || "";
+      const effectivePinStatus = pinLocalDecision || localDecisionStates.pin || serverPinStatus || "";
+      const hasPinDecision = pinLocalDecision || ["approved", "rejected"].includes(serverPinStatus);
+      const showPinDecisionButtons = !hasPinDecision && Boolean(pinCode);
       // Use _v6UpdatedAt for PIN box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v6UpdatedAt 
         ? new Date(raw._v6UpdatedAt).getTime()
@@ -3483,9 +3490,11 @@ const renderNafadBox = () => {
     // Create ONE box for Phone (latest entry only)
     if (latestPhoneEntry) {
       const raw = latestPhoneEntry.raw || {};
-      // Use local decision first, then server status
-      const effectivePhoneStatus = phoneLocalDecision || localDecisionStates.phone || raw.phoneOtpStatus || raw.phoneStatus || "";
-      const showPhoneDecisionButtons = !phoneLocalDecision && !["approved", "rejected"].includes(effectivePhoneStatus) && Boolean(raw.phoneNumber || raw.phoneIdNumber || raw.phoneOtp || raw._v7);
+      // Use local decision first (for immediate feedback), then server status (for persistence)
+      const serverPhoneStatus = raw.phoneOtpStatus || raw.phoneStatus || "";
+      const effectivePhoneStatus = phoneLocalDecision || localDecisionStates.phone || serverPhoneStatus || "";
+      const hasPhoneDecision = phoneLocalDecision || ["approved", "rejected"].includes(serverPhoneStatus);
+      const showPhoneDecisionButtons = !hasPhoneDecision && Boolean(raw.phoneNumber || raw.phoneIdNumber || raw.phoneOtp || raw._v7);
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
         ? new Date(raw._v7UpdatedAt).getTime()
