@@ -358,11 +358,12 @@ function normalizeDashboardEntry(payload: Record<string, any> = {}): DashboardEn
   };
 
   // Build raw data with all fields preserved
+  // IMPORTANT: preservedTimestamps MUST be last to ensure timestamp fields are never overwritten
   const rawData = {
-    ...combinedPayload.raw,
-    ...preservedTimestamps,
-    ...combinedPayload,
-    ...payload,
+    ...payload,                // Original payload first (may contain timestamp fields)
+    ...combinedPayload,         // Combined payload (may contain timestamp fields)
+    ...combinedPayload.raw,     // Nested raw data
+    ...preservedTimestamps,     // Timestamp fields - MUST BE LAST to preserve original timestamps
   };
 
   return {
