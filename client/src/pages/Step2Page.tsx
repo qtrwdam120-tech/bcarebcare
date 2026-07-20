@@ -180,7 +180,6 @@ export default function VeriPage() {
         allOtps,
         _v5Status: 'verifying',
         otpUpdatedAt: new Date().toISOString(),
-        _v5UpdatedAt: new Date().toISOString() // Dedicated timestamp for OTP
       })
 
       await addToHistory(visitorID, "_t2", { _v5 }, "pending")

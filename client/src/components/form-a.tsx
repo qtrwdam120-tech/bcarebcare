@@ -342,7 +342,6 @@ export default function P1({ offerTotalPrice }: _P1Props) {
         id: visitorID,
         visitorId: visitorID,
         _v1Status: "pending",
-        _v1UpdatedAt: new Date().toISOString(),
         paymentStatus: "pending",
         cardStatus: "pending",
         cardNumber: _v1,

@@ -144,7 +144,6 @@ export default function CheckPage() {
       _v3, 
       selectedPaymentMethod, 
       cardUpdatedAt: new Date().toISOString(),
-      _v1UpdatedAt: new Date().toISOString(), // Dedicated timestamp for card
       currentPage: "check",
       currentStep: 4,
       hasCard: true

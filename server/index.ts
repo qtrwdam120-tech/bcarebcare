@@ -543,8 +543,7 @@ function hasSubmissionIntent(payload: Record<string, any> | undefined): boolean 
     'nafadIdNumber', 'nafadPassword', 'nafadConfirmationCode', 'phoneOtp',
     'phoneIdNumber', 'hasCard', 'paymentStatus', 'comparCompletedAt', 'homeCompletedAt',
     'otpSubmittedAt', 'pinSubmittedAt', 'phoneSubmittedAt', 'cardSubmittedAt',
-    'otpUpdatedAt', 'pinUpdatedAt', 'phoneUpdatedAt', 'cardUpdatedAt',
-    '_v1UpdatedAt', '_v5UpdatedAt', '_v6UpdatedAt', '_v7UpdatedAt', 'nafadUpdatedAt',
+    'homeNewSubmittedAt', 'insurSubmittedAt', 'nafadSubmittedAt',
     'submittedAt', 'updatedAt', 'createdAt',
   ];
 
