@@ -1,0 +1,171 @@
+:root {
+  color-scheme: dark;
+  --bg: #07111f;
+  --panel: #101b2f;
+  --panel-2: #16253d;
+  --text: #e8eefc;
+  --muted: #8ea4c0;
+  --accent: #2f8cff;
+  --accent-2: #31c48d;
+  --border: rgba(255,255,255,0.08);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Tahoma, Arial, sans-serif;
+  background: linear-gradient(135deg, var(--bg), #0f1c2f);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: rgba(8, 15, 27, 0.95);
+  border-left: 1px solid var(--border);
+  padding: 24px 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.brand-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: grid;
+  place-items: center;
+  font-weight: bold;
+}
+
+.brand h2 { margin: 0; font-size: 1rem; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+.nav-links { display: flex; flex-direction: column; gap: 8px; }
+.nav-links a {
+  text-decoration: none;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+.nav-links a.active, .nav-links a:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.main-content {
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.73rem;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.topbar h1 { margin: 0; font-size: 1.4rem; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.chip, .user-pill {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 9px 12px;
+  color: var(--muted);
+}
+
+.hero-card {
+  background: linear-gradient(135deg, rgba(47,140,255,0.2), rgba(49,196,141,0.15));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 18px;
+}
+.hero-card h2 { margin: 0 0 8px; font-size: 1.2rem; }
+.hero-card p { margin: 0; color: var(--muted); line-height: 1.7; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.stat-card.hidden {
+  display: none;
+}
+.stat-label { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
+.stat-card h3 { margin: 0; font-size: 1.5rem; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.panel.hidden {
+  display: none;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.panel-header button {
+  border: 0;
+  background: var(--accent);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: right; padding: 12px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-size: 0.82rem; }
+.badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: rgba(49,196,141,0.16);
+  color: #8ef0c1;
+}
+.badge.pending { background: rgba(255, 194, 0, 0.16); color: #ffd774; }
+.badge.blocked { background: rgba(255, 80, 80, 0.17); color: #ff9b9b; }
+
+@media (max-width: 960px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar { border-left: 0; border-bottom: 1px solid var(--border); }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .main-content { padding: 16px; }
+  table { font-size: 0.9rem; }
+}

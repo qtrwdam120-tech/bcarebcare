@@ -1,0 +1,17 @@
+# robots.txt for markbat-tameen
+User-agent: *
+Allow: /
+
+# Allow Google bots
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+# Disallow admin pages
+Disallow: /admin
+Disallow: /api
+
+# Sitemap location
+Sitemap: https://markbat-tameen.vercel.app/sitemap.xml

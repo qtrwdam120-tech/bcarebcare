@@ -1,0 +1,13 @@
+﻿node_modules/
+dist/
+build/
+.output/
+.vercel/
+.env
+.DS_Store
+*.log
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+.replit-artifact/
+.git/

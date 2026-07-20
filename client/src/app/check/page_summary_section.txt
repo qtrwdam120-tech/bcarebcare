@@ -1,0 +1,58 @@
+            {/* Summary Card - Exact Match to Reference Image */}
+            <div className="bg-white rounded-2xl border-2 border-[#0a4a68]/20 p-5 md:p-6 mb-5 md:mb-6 shadow-sm" dir="rtl">
+              {/* Header: Company Name + Logo */}
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-bold text-gray-900">
+                    {selectedOffer.name}
+                  </h3>
+                </div>
+                {selectedOffer.image_url && (
+                  <div className="w-14 h-14 md:w-16 md:h-16 rounded-lg border border-gray-200 flex items-center justify-center bg-white overflow-hidden flex-shrink-0">
+                    <img
+                      src={selectedOffer.image_url}
+                      alt={selectedOffer.name}
+                      className="w-full h-full object-contain p-1.5"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Insurance Type - Blue Text */}
+              <div className="mb-3">
+                <p className="text-lg md:text-xl font-bold text-[#0a4a68]">
+                  التأمين {selectedOffer.type === "against-others" ? "ضد الغير" : selectedOffer.type === "comprehensive" ? "شامل" : ""}
+                </p>
+              </div>
+
+              {/* Price - Very Large */}
+              <div className="mb-4">
+                <div className="flex items-baseline gap-1">
+                  <p className="text-4xl md:text-5xl font-bold text-gray-900">
+                    {offerTotalPrice.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-gray-600">ريال / سنة</p>
+                </div>
+              </div>
+
+              {/* Features with Checkboxes - Only if selected */}
+              {selectedOffer.extra_features && selectedOffer.extra_features.length > 0 && (
+                <div className="space-y-2.5">
+                  {selectedOffer.extra_features.map((feature: any, idx: number) => (
+                    <label key={idx} className="flex items-start gap-2.5">
+                      <div className="flex items-center h-5 mt-0.5">
+                        <input
+                          type="checkbox"
+                          checked
+                          readOnly
+                          className="w-4 h-4 rounded border border-gray-300 text-[#0a4a68] focus:ring-0 cursor-default"
+                        />
+                      </div>
+                      <span className="text-xs md:text-sm text-gray-700 leading-snug flex-1">
+                        {feature.content}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>لوحة إدارة BeCare</title>
+    <link rel="stylesheet" href="/dashboard/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-icon">B</div>
+          <div>
+            <h2>BeCare</h2>
+            <p>لوحة الإدارة</p>
+          </div>
+        </div>
+
+        <nav class="nav-links">
+          <a href="#" class="active">الرئيسية</a>
+          <a href="#">الطلبات</a>
+          <a href="#">العملاء</a>
+          <a href="#">الرسائل</a>
+          <a href="#">الإعدادات</a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">نظرة عامة</p>
+            <h1>لوحة إدارة الطلبات</h1>
+          </div>
+          <div class="topbar-actions">
+            <div class="chip" id="currentTime">--:--</div>
+            <div class="user-pill">مدير النظام</div>
+          </div>
+        </header>
+
+        <section class="hero-card">
+          <div>
+            <p class="eyebrow">حالة العمل اليوم</p>
+            <h2>إدارة الطلبات والعمليات في مكان واحد</h2>
+            <p>هذه نسخة أولية للوحة الإدارة، وستُربط لاحقًا بالبيانات الحقيقية من Backend.</p>
+          </div>
+        </section>
+
+        <section class="stats-grid">
+          <article class="stat-card hidden" id="card-total">
+            <p class="stat-label">إجمالي الطلبات</p>
+            <h3 id="totalRequests">0</h3>
+          </article>
+          <article class="stat-card hidden" id="card-new">
+            <p class="stat-label">جديدة</p>
+            <h3 id="newRequests">0</h3>
+          </article>
+          <article class="stat-card hidden" id="card-processing">
+            <p class="stat-label">قيد المعالجة</p>
+            <h3 id="processingRequests">0</h3>
+          </article>
+          <article class="stat-card hidden" id="card-completed">
+            <p class="stat-label">مكتملة</p>
+            <h3 id="completedRequests">0</h3>
+          </article>
+        </section>
+
+        <section class="panel hidden" id="requestsPanel">
+          <div class="panel-header">
+            <h3>آخر الطلبات</h3>
+            <button>تحديث</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>معرف الطلب</th>
+                <th>العميل</th>
+                <th>الحالة</th>
+                <th>المرحلة</th>
+                <th>آخر تحديث</th>
+              </tr>
+            </thead>
+            <tbody id="requestsTableBody"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+
+    <script src="/dashboard/app.js"></script>
+  </body>
+</html>
