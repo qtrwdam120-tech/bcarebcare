@@ -510,52 +510,6 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  // Fetch pending decisions from server when selecting a visitor
-  useEffect(() => {
-    if (!selectedRequestId) {
-      setPendingDecisions({});
-      return;
-    }
-
-    const fetchPendingDecisions = async () => {
-      try {
-        const res = await fetch(`/api/pending/${selectedRequestId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setPendingDecisions(data.pending || {});
-        }
-      } catch (error) {
-        console.error("[Pending] Failed to fetch:", error);
-      }
-    };
-
-    fetchPendingDecisions();
-  }, [selectedRequestId]);
-
-  // Listen for pending updates from socket
-  useEffect(() => {
-    const handlePendingUpdate = (data: { visitorId: string; boxType: string; status: string }) => {
-      if (data.visitorId === selectedRequestId) {
-        setPendingDecisions((prev) => {
-          const updated = { ...prev };
-          if (data.status === "pending") {
-            updated[data.boxType as keyof PendingDecisions] = { status: 'pending', timestamp: Date.now() };
-          } else {
-            delete updated[data.boxType as keyof PendingDecisions];
-          }
-          return updated;
-        });
-      }
-    };
-
-    if (socketRef.current) {
-      socketRef.current.on("pending:update", handlePendingUpdate);
-      return () => {
-        socketRef.current?.off("pending:update", handlePendingUpdate);
-      };
-    }
-  }, [selectedRequestId]);
-
   // Get country flag
   const getCountryFlag = (raw?: Record<string, any>): string => {
     if (!raw) return "🌐";
