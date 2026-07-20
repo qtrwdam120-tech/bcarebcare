@@ -2795,7 +2795,7 @@ const renderNafadBox = () => {
 
     // Track the box type with the highest timestamp for "الأحدث" badge
     // Initialize with empty string - will be set after all boxes are created
-    const boxTimestamps: { type: string; timestamp: number; key: string }[] = [];
+    const boxTimestampsForSort: { type: string; timestamp: number; key: string }[] = [];
 
     // Create ONE box for Card (latest entry only)
     if (latestCardEntry) {
@@ -2806,7 +2806,7 @@ const renderNafadBox = () => {
       const hasCardDecision = raw._v1Status === "approved" || raw._v1Status === "rejected";
       // Show buttons if: has card data AND no decision yet
       const showCardDecisionButtons = hasCardData && !hasCardDecision;
-      // Use card timestamp with fallback to boxTimestamps
+      // Use card timestamp from state with fallback
       const cardTs = boxTimestamps?.card?.event_timestamp 
         ? new Date(boxTimestamps.card.event_timestamp).getTime()
         : 0;
@@ -2816,7 +2816,7 @@ const renderNafadBox = () => {
       let entryTimestamp = cardTs || rawTs;
 
       const boxKey = `card-${latestCardEntry.id}`;
-      boxTimestamps.push({ type: 'card', timestamp: entryTimestamp, key: boxKey });
+      boxTimestampsForSort.push({ type: 'card', timestamp: entryTimestamp, key: boxKey });
 
       // Bank card themes
       const getBankTheme = (cardType: string | undefined) => {
@@ -4254,7 +4254,7 @@ const renderNafadBox = () => {
         raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0,
       ];
       let entryTimestamp = Math.max(...packageTimestamps.filter(t => t > 0));
-      boxTimestamps.push({ type: 'package', timestamp: entryTimestamp, key: `package-${latestPackageEntry.id}` });
+      boxTimestampsForSort.push({ type: 'package', timestamp: entryTimestamp, key: `package-${latestPackageEntry.id}` });
 
       const offerName = selectedOffer?.name || "—";
       const offerType = selectedOffer?.type === "comprehensive" ? "تأمين شامل" : "تأمين ضد الغير";
