@@ -412,13 +412,12 @@ export default function DashboardPage() {
         console.log("[Socket Update] MERGED entry:", mergedRequest.id, "raw keys:", Object.keys(mergedRequest.raw || {}));
         
         // Force re-render if this is the selected request
+        // Note: We don't reset selectedRequestId anymore because it causes local decisions to be reset
+        // The merged data will be used by the existing selected request without resetting local decisions
         if (shouldUpdateSelected) {
-          setTimeout(() => {
-            console.log("[Socket Update] Forcing re-selection for merged data");
-            const newId = mergedRequest.id || currentSelectedId;
-            setSelectedRequestId(null);
-            setTimeout(() => setSelectedRequestId(newId), 0);
-          }, 0);
+          console.log("[Socket Update] Data merged for selected request, preserving local decisions");
+          // Force a re-render without changing selectedRequestId
+          setRequests(prev => [...prev]);
         }
         
         return newRequests;
