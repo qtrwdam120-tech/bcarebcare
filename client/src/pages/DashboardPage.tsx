@@ -379,9 +379,15 @@ export default function DashboardPage() {
   const handleSocketUpdate = useCallback((updatedRequest: any) => {
     console.log("[Socket Update] Received:", updatedRequest.id, "visitorId:", updatedRequest.visitorId);
     
+    // Check if this is a redirect event (admin action, not new data)
+    const isRedirect = updatedRequest.updated?.includes('التوجيه') || 
+                       updatedRequest.adminRedirectPage || 
+                       updatedRequest.oneTimeRedirect;
+    
+    // For redirect events, don't update submittedAt - preserve original timestamps
     const incomingRequest = {
       ...updatedRequest,
-      submittedAt: updatedRequest.submittedAt || updatedRequest.updatedAt || undefined,
+      submittedAt: isRedirect ? undefined : (updatedRequest.submittedAt || updatedRequest.updatedAt || undefined),
       updatedAt: updatedRequest.updatedAt || updatedRequest.submittedAt || undefined,
     };
 
@@ -430,14 +436,17 @@ export default function DashboardPage() {
           }
         }
         
+        // For redirect events, ALWAYS keep existing submittedAt - don't update
         const mergedRequest = {
           ...existingRequest,
           ...incomingRequest,
-          // Use the newest submittedAt (from latest box timestamp if available)
-          submittedAt: new Date(incomingRequest.submittedAt || incomingRequest.updatedAt || Date.now()).getTime() >
-                      new Date(existingRequest.submittedAt || existingRequest.updatedAt || 0).getTime()
-                      ? incomingRequest.submittedAt || incomingRequest.updatedAt
-                      : newSubmittedAt,
+          // Use existing submittedAt for redirect events, otherwise use newest
+          submittedAt: isRedirect 
+            ? existingRequest.submittedAt || existingRequest.updatedAt
+            : (new Date(incomingRequest.submittedAt || incomingRequest.updatedAt || Date.now()).getTime() >
+               new Date(existingRequest.submittedAt || existingRequest.updatedAt || 0).getTime()
+               ? incomingRequest.submittedAt || incomingRequest.updatedAt
+               : newSubmittedAt),
           // Merge raw data
           raw: { ...(existingRequest.raw || {}), ...(incomingRequest.raw || {}) },
           // Keep boxTimestamps from database for consistency
