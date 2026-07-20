@@ -119,17 +119,6 @@ export default function DashboardPage() {
   const [phoneLocalDecision, setPhoneLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const [otpLocalDecision, setOtpLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const [pinLocalDecision, setPinLocalDecision] = useState<"approved" | "rejected" | null>(null);
-  
-  // Pending decisions from server (local memory) - fetched when selecting a visitor
-  type PendingDecision = { status: 'pending'; timestamp: number };
-  type PendingDecisions = {
-    card?: PendingDecision;
-    otp?: PendingDecision;
-    pin?: PendingDecision;
-    phone?: PendingDecision;
-  };
-  const [pendingDecisions, setPendingDecisions] = useState<PendingDecisions>({});
-  
   const socketRef = useRef<Socket | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
