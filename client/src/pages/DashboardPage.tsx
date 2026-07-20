@@ -3539,7 +3539,7 @@ const renderNafadBox = () => {
     // Count entries that have Phone verification data
     const phoneEntriesCount = customerEntryGroup.filter(entry => {
       const raw = entry.raw || {};
-      return raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7;
+      return raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber || raw.mobileNumber;
     }).length;
     
     // Find the most recent entry with Phone verification data
@@ -3548,7 +3548,8 @@ const renderNafadBox = () => {
     
     customerEntryGroup.forEach((entry) => {
       const raw = entry.raw || {};
-      const hasPhoneVerification = raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7;
+      // Check for any phone-related data
+      const hasPhoneVerification = raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber || raw.mobileNumber;
       if (hasPhoneVerification) {
         // Use _v7UpdatedAt for phone timestamp, fallback to comparCompletedAt or submittedAt
         const ts = raw._v7UpdatedAt 
@@ -3584,7 +3585,9 @@ const renderNafadBox = () => {
       // Otherwise use local decision (for immediate feedback)
       const effectivePhoneStatus = serverPhoneStatus || phoneLocalDecision || "";
       const hasPhoneDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
-      const showPhoneDecisionButtons = !hasPhoneDecision && Boolean(raw.phoneNumber || raw.phoneIdNumber || raw.phoneOtp || raw._v7);
+      // Show buttons if: no decision AND has phone data
+      const hasPhoneData = Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber || raw.mobileNumber);
+      const showPhoneDecisionButtons = !hasPhoneDecision && hasPhoneData;
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
         ? new Date(raw._v7UpdatedAt).getTime()
