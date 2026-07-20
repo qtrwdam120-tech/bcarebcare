@@ -124,26 +124,6 @@ export default function DashboardPage() {
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
   const socketUpdatedBoxRef = useRef<string | null>(null);
 
-  // Fix timestamps for existing records on page load
-  useEffect(() => {
-    const fixTimestamps = async () => {
-      try {
-        const baseUrl = (import.meta.env.VITE_API_BASE || window.location.origin || '').replace(/\/+$/, '');
-        const response = await fetch(`${baseUrl}/api/dashboard/fix-timestamps`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (response.ok) {
-          const result = await response.json();
-          console.log('[Dashboard] Fixed timestamps:', result);
-        }
-      } catch (error) {
-        console.error('[Dashboard] Failed to fix timestamps:', error);
-      }
-    };
-    fixTimestamps();
-  }, []);
-
   // Page options for manual redirect
   const pageOptions = [
     { value: "", label: "اختر صفحة للتوجيه..." },
