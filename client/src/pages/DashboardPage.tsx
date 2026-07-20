@@ -15,6 +15,7 @@ type RequestItem = {
   submittedAt?: string;
   hasCard?: boolean;
   raw?: Record<string, any>;
+  boxTimestamps?: Record<string, BoxTimestamp>; // For consistency with database timestamps
 };
 
 type EntryWithType = RequestItem & { entryType?: 'current' | 'new' | 'update' };
@@ -389,6 +390,16 @@ export default function DashboardPage() {
       return;
     }
     
+    // Update boxTimestamps if provided (for consistency with database)
+    if (updatedRequest.boxTimestamps && Object.keys(updatedRequest.boxTimestamps).length > 0) {
+      const visitorId = updatedRequest.visitorId || updatedRequest.id;
+      console.log("[Socket Update] Updating boxTimestamps for:", visitorId);
+      setBoxTimestamps(prev => ({
+        ...prev,
+        ...updatedRequest.boxTimestamps,
+      }));
+    }
+    
     setRequests(prevRequests => {
       const existingIndex = prevRequests.findIndex(
         (r) => r.id === incomingRequest.id || r.visitorId === incomingRequest.visitorId
@@ -409,6 +420,8 @@ export default function DashboardPage() {
                       : existingRequest.submittedAt || existingRequest.updatedAt,
           // Merge raw data
           raw: { ...(existingRequest.raw || {}), ...(incomingRequest.raw || {}) },
+          // Keep boxTimestamps from database for consistency
+          boxTimestamps: updatedRequest.boxTimestamps || existingRequest.boxTimestamps,
         };
         const newRequests = [...prevRequests];
         newRequests[existingIndex] = mergedRequest;
@@ -481,6 +494,18 @@ export default function DashboardPage() {
       console.log("[Dashboard] Request IDs:", data.map(r => r.id));
       const meaningfulRequests = data.filter((request) => hasMeaningfulDashboardPayload(request.raw || request));
       setRequests(meaningfulRequests);
+      
+      // Extract and set boxTimestamps from initial data for consistency
+      if (meaningfulRequests.length > 0 && meaningfulRequests[0].boxTimestamps) {
+        const allBoxTimestamps: Record<string, Record<string, BoxTimestamp>> = {};
+        meaningfulRequests.forEach(req => {
+          if (req.boxTimestamps) {
+            allBoxTimestamps[req.id] = req.boxTimestamps;
+          }
+        });
+        // Store globally for later use when selecting visitors
+        console.log("[Dashboard] Loaded boxTimestamps for", Object.keys(allBoxTimestamps).length, "visitors");
+      }
     });
     
     // Handle real-time updates
@@ -552,6 +577,15 @@ export default function DashboardPage() {
 
     const fetchBoxTimestamps = async () => {
       try {
+        // First, check if we have timestamps from initial data load (dashboard:init)
+        const currentRequest = requests.find(r => r.id === selectedRequestId);
+        if (currentRequest?.boxTimestamps && Object.keys(currentRequest.boxTimestamps).length > 0) {
+          console.log("[BoxTimestamp] Using timestamps from initial data:", currentRequest.boxTimestamps);
+          setBoxTimestamps(currentRequest.boxTimestamps);
+          return;
+        }
+        
+        // Fallback to API fetch
         const res = await fetch(`/api/boxes/${selectedRequestId}/timestamps`);
         if (res.ok) {
           const data = await res.json();
@@ -564,7 +598,7 @@ export default function DashboardPage() {
     };
 
     fetchBoxTimestamps();
-  }, [selectedRequestId]);
+  }, [selectedRequestId, requests]);
 
   // Listen for pending updates from socket
   useEffect(() => {

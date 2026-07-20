@@ -91,14 +91,27 @@ interface BoxTimestamp {
 
 // Set box timestamp in database - NEW SYSTEM
 async function setBoxTimestamp(visitorId: string, boxType: BoxType, status: string): Promise<void> {
+  const timestamp = new Date().toISOString();
   try {
+    // 1. Update visitor_box_events table
     await pool.query(`
       INSERT INTO visitor_box_events (visitor_id, box_type, status, event_timestamp, updated_at)
-      VALUES ($1, $2, $3, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $4)
       ON CONFLICT (visitor_id, box_type) 
-      DO UPDATE SET status = $3, event_timestamp = NOW(), updated_at = NOW()
-    `, [visitorId, boxType, status]);
-    console.log(`[BoxTimestamp] Set ${boxType}=${status} for visitor ${visitorId}`);
+      DO UPDATE SET status = $3, event_timestamp = $4, updated_at = $4
+    `, [visitorId, boxType, status, timestamp]);
+    
+    // 2. Sync to dashboard_requests.raw for consistency (same timestamp source)
+    const timestampField = getBoxTimestampField(boxType);
+    if (timestampField) {
+      await pool.query(`
+        UPDATE dashboard_requests 
+        SET raw = jsonb_set(raw, '{${timestampField}}', $1, true)
+        WHERE visitor_id = $2
+      `, [timestamp, visitorId]);
+    }
+    
+    console.log(`[BoxTimestamp] Set ${boxType}=${status} for visitor ${visitorId} at ${timestamp}`);
   } catch (error) {
     console.error(`[BoxTimestamp] Error setting ${boxType} for ${visitorId}:`, error);
   }
@@ -930,9 +943,31 @@ async function upsertDashboardRequest(payload: Record<string, any> = {}, options
 
 async function getDashboardEntries(): Promise<DashboardEntry[]> {
   try {
+    // Get all dashboard requests
     const { rows } = await pool.query(
       `SELECT id, customer, status, stage, updated, badge, visitor_id AS "visitorId", submitted_at AS "submittedAt", raw FROM dashboard_requests ORDER BY submitted_at DESC, id DESC`,
     );
+
+    // Get all box timestamps from visitor_box_events for consistency
+    const { rows: timestamps } = await pool.query(`
+      SELECT visitor_id, box_type, status, event_timestamp, updated_at 
+      FROM visitor_box_events
+    `);
+
+    // Convert timestamps to map: { visitorId: { boxType: BoxTimestamp } }
+    const timestampsMap: Record<string, Record<string, BoxTimestamp>> = {};
+    timestamps.forEach(row => {
+      if (!timestampsMap[row.visitor_id]) {
+        timestampsMap[row.visitor_id] = {};
+      }
+      timestampsMap[row.visitor_id][row.box_type] = {
+        visitor_id: row.visitor_id,
+        box_type: row.box_type,
+        status: row.status,
+        event_timestamp: row.event_timestamp,
+        updated_at: row.updated_at,
+      };
+    });
 
     return rows.map((row) => ({
       id: row.id,
@@ -945,6 +980,7 @@ async function getDashboardEntries(): Promise<DashboardEntry[]> {
       visitorId: row.visitorId || undefined,
       submittedAt: row.submittedAt || undefined,
       raw: row.raw || {},
+      boxTimestamps: timestampsMap[row.visitorId] || {}, // Include box timestamps for consistency
     }));
   } catch (error) {
     console.error("[Dashboard] DB QUERY FAILED:", error);
