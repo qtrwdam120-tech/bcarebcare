@@ -2540,7 +2540,7 @@ const renderNafadBox = () => {
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectiveCardStatus = serverCardStatus || cardLocalDecision || "";
-      const hasCardDecision = serverCardStatus || cardLocalDecision;
+      const hasCardDecision = Boolean(serverCardStatus || cardLocalDecision);
       const showCardDecisionButtons = !hasCardDecision && Boolean(raw._v1 || raw.cardNumber);
       // Use _v1UpdatedAt for Card box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v1UpdatedAt 
@@ -3160,7 +3160,7 @@ const renderNafadBox = () => {
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectiveOtpStatus = serverOtpStatus || otpLocalDecision || "";
-      const hasOtpDecision = serverOtpStatus || otpLocalDecision;
+      const hasOtpDecision = Boolean(serverOtpStatus || otpLocalDecision);
       const showOtpDecisionButtons = !hasOtpDecision && Boolean(otpCode);
       // Use _v5UpdatedAt for OTP box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v5UpdatedAt 
@@ -3368,7 +3368,7 @@ const renderNafadBox = () => {
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectivePinStatus = serverPinStatus || pinLocalDecision || "";
-      const hasPinDecision = serverPinStatus || pinLocalDecision;
+      const hasPinDecision = Boolean(serverPinStatus || pinLocalDecision);
       const showPinDecisionButtons = !hasPinDecision && Boolean(pinCode);
       // Use _v6UpdatedAt for PIN box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v6UpdatedAt 
@@ -3543,16 +3543,12 @@ const renderNafadBox = () => {
     }).length;
     
     // Find the most recent entry with Phone verification data
-    // IMPORTANT: We need to find the entry with the LATEST timestamp that has phone data
-    // This entry might NOT have the OTP code if the customer just entered phone number
-    // So we need to merge phone data from all entries
     let latestPhoneEntry: (typeof customerEntryGroup)[0] | null = null;
     let latestPhoneTimestamp = 0;
     
-    // First, find the entry with the latest timestamp that has ANY phone data
     customerEntryGroup.forEach((entry) => {
       const raw = entry.raw || {};
-      const hasPhoneVerification = raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7 || raw.phoneNumber;
+      const hasPhoneVerification = raw.phoneIdNumber || raw.phoneCarrier || raw.phoneOtp || raw._v7;
       if (hasPhoneVerification) {
         // Use _v7UpdatedAt for phone timestamp, fallback to comparCompletedAt or submittedAt
         const ts = raw._v7UpdatedAt 
@@ -3565,22 +3561,10 @@ const renderNafadBox = () => {
         }
       }
     });
-    
-    // If latestPhoneEntry doesn't have OTP, search other entries for it
-    let mergedPhoneRaw: Record<string, any> = latestPhoneEntry?.raw || {};
-    if (latestPhoneEntry && !mergedPhoneRaw.phoneOtp && !mergedPhoneRaw._v7) {
-      for (const entry of customerEntryGroup) {
-        const entryRaw = entry.raw || {};
-        if (entryRaw.phoneOtp || entryRaw._v7) {
-          mergedPhoneRaw = { ...mergedPhoneRaw, ...entryRaw };
-          break;
-        }
-      }
-    }
 
     // Create ONE box for Phone (latest entry only)
     if (latestPhoneEntry) {
-      const raw = mergedPhoneRaw;
+      const raw = latestPhoneEntry.raw || {};
       // Search for phone decision across ALL entries (not just latest)
       const serverPhoneStatus = (() => {
         // First check the latest entry
@@ -3599,7 +3583,7 @@ const renderNafadBox = () => {
       // If server has a decision, use it (for persistence after reload)
       // Otherwise use local decision (for immediate feedback)
       const effectivePhoneStatus = serverPhoneStatus || phoneLocalDecision || "";
-      const hasPhoneDecision = serverPhoneStatus || phoneLocalDecision;
+      const hasPhoneDecision = Boolean(serverPhoneStatus || phoneLocalDecision);
       const showPhoneDecisionButtons = !hasPhoneDecision && Boolean(raw.phoneNumber || raw.phoneIdNumber || raw.phoneOtp || raw._v7);
       // Use _v7UpdatedAt for Phone box timestamp, fallback to comparCompletedAt or submittedAt
       let entryTimestamp = raw._v7UpdatedAt 
