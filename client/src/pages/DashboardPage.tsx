@@ -2158,21 +2158,21 @@ const renderNafadBox = () => {
     // Card: checkUpdatedAt > cardUpdatedAt > submittedAt
     const getCardTimestamp = (raw: any): number => {
       if (!raw) return 0;
-      const ts = raw.checkUpdatedAt || raw.cardUpdatedAt || raw.cardSubmittedAt || raw.submittedAt;
+      const ts = raw.cardSubmittedAt;
       return ts ? new Date(ts).getTime() : 0;
     };
     
     // PIN: pinSubmittedAt > pinUpdatedAt
     const getPinTimestamp = (raw: any): number => {
       if (!raw) return 0;
-      const ts = raw.pinSubmittedAt || raw.pinUpdatedAt || raw.pinSubmittedAt;
+      const ts = raw.pinSubmittedAt;
       return ts ? new Date(ts).getTime() : 0;
     };
     
     // Phone: phoneSubmittedAt > phoneUpdatedAt
     const getPhoneTimestamp = (raw: any): number => {
       if (!raw) return 0;
-      const ts = raw.phoneSubmittedAt || raw.phoneUpdatedAt;
+      const ts = raw.phoneSubmittedAt;
       return ts ? new Date(ts).getTime() : 0;
     };
     
@@ -2186,21 +2186,22 @@ const renderNafadBox = () => {
     // Insurance: insuranceSubmittedAt > insuranceUpdatedAt > createdAt
     const getInsuranceTimestamp = (raw: any): number => {
       if (!raw) return 0;
-      const ts = raw.insuranceSubmittedAt || raw.insuranceUpdatedAt || raw.createdAt || raw.submittedAt;
+      const ts = raw.insurSubmittedAt;
       return ts ? new Date(ts).getTime() : 0;
     };
     
     // Basic: createdAt > submittedAt
     const getBasicTimestamp = (raw: any): number => {
       if (!raw) return 0;
-      const ts = raw.createdAt || raw.submittedAt || raw.updatedAt;
-      return ts ? new Date(ts).getTime() : 0;
+      const homeTime = raw.homeNewSubmittedAt ? new Date(raw.homeNewSubmittedAt).getTime() : 0;
+      const comparTime = raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0;
+      return Math.max(homeTime, comparTime); 
     };
     
     // Get card data and timestamp from the specific entry that actually contains card data
     const cardMatch = getLatestEntryForMatcher((raw) => Boolean(
       raw._v1 || raw._v2 || raw._v3 || raw.cardNumber || raw.paymentStatus || raw.hasCard ||
-      raw.cardSubmittedAt || raw.cardUpdatedAt || raw.checkUpdatedAt || raw.cardSubmittedAt
+      raw.cardSubmittedAt
     ));
     const cardEntry = cardMatch?.entry || null;
     const cardRaw = cardMatch?.raw || null;

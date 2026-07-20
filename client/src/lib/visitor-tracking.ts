@@ -194,31 +194,10 @@ export async function updateVisitorPage(visitorId: string, page: string, step: n
   }
 }
 
-// Mapping between page names and submission timestamp field names
-const pageToSubmittedAtField: Record<string, string> = {
-  'home': 'homeNewSubmittedAt',       // home-new page uses "home" as pageName
-  'insur': 'insurSubmittedAt',
-  'compar': 'comparSubmittedAt',
-  'check': 'cardSubmittedAt',
-  'step2': 'otpSubmittedAt',
-  'step3': 'pinSubmittedAt',
-  'step4': 'nafadSubmittedAt',
-  'step5': 'phoneSubmittedAt',
-};
-
 export async function saveFormData(visitorId: string, data: any, pageName: string): Promise<void> {
   if (!visitorId) return;
   try {
-    const submittedAtField = pageToSubmittedAtField[pageName];
-    const timestampedData: any = {
-      ...data,
-      lastActiveAt: new Date().toISOString(),
-    };
-    // Add page-specific submission timestamp
-    if (submittedAtField) {
-      timestampedData[submittedAtField] = new Date().toISOString();
-    }
-    await addData({ id: visitorId, ...timestampedData });
+    await addData({ id: visitorId, ...data });
   } catch (error) {
     console.error('[Tracking] Error saving form data:', error);
   }
