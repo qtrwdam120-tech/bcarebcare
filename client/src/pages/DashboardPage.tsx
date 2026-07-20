@@ -2538,12 +2538,23 @@ const renderNafadBox = () => {
                            raw.vehicleValue || raw.vehicleYear || raw.repairLocation;
       
       if (hasBasic || hasInsurance) {
-      // Use the latest of homeNewSubmittedAt, insurSubmittedAt, or comparSubmittedAt
-      let entryTimestamp = Math.max(
+      // Use the latest of boxTimestamps, _vXUpdatedAt, or *SubmittedAt
+      const rawTimestamps = [
+        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
+        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
+        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
+        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
+        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
+        raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
+        raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
+        raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
+        raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
+        raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
         raw.homeNewSubmittedAt ? new Date(raw.homeNewSubmittedAt).getTime() : 0,
         raw.insurSubmittedAt ? new Date(raw.insurSubmittedAt).getTime() : 0,
-        raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0
-      );
+        raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0,
+      ];
+      let entryTimestamp = Math.max(...rawTimestamps.filter(t => t > 0));
 
       boxes.push({
         key: `basic-insurance-${latestBasicEntry.id}`,
@@ -2795,10 +2806,14 @@ const renderNafadBox = () => {
       const hasCardDecision = raw._v1Status === "approved" || raw._v1Status === "rejected";
       // Show buttons if: has card data AND no decision yet
       const showCardDecisionButtons = hasCardData && !hasCardDecision;
-      // Use ONLY cardSubmittedAt for Card box timestamp - don't use shared timestamps
-      let entryTimestamp = raw.cardSubmittedAt 
-        ? new Date(raw.cardSubmittedAt).getTime()
+      // Use card timestamp with fallback to boxTimestamps
+      const cardTs = boxTimestamps?.card?.event_timestamp 
+        ? new Date(boxTimestamps.card.event_timestamp).getTime()
         : 0;
+      const rawTs = raw._v1UpdatedAt 
+        ? new Date(raw._v1UpdatedAt).getTime()
+        : (raw.cardSubmittedAt ? new Date(raw.cardSubmittedAt).getTime() : 0);
+      let entryTimestamp = cardTs || rawTs;
 
       const boxKey = `card-${latestCardEntry.id}`;
       boxTimestamps.push({ type: 'card', timestamp: entryTimestamp, key: boxKey });
@@ -4224,10 +4239,21 @@ const renderNafadBox = () => {
     if (latestPackageEntry) {
       const raw = latestPackageEntry.raw || {};
       const selectedOffer = raw.selectedOffer;
-      // Use ONLY comparSubmittedAt for package timestamp
-      let entryTimestamp = raw.comparSubmittedAt
-        ? new Date(raw.comparSubmittedAt).getTime()
-        : 0;
+      // Use the latest of boxTimestamps, _vXUpdatedAt, or comparSubmittedAt
+      const packageTimestamps = [
+        boxTimestamps?.card?.event_timestamp ? new Date(boxTimestamps.card.event_timestamp).getTime() : 0,
+        boxTimestamps?.otp?.event_timestamp ? new Date(boxTimestamps.otp.event_timestamp).getTime() : 0,
+        boxTimestamps?.pin?.event_timestamp ? new Date(boxTimestamps.pin.event_timestamp).getTime() : 0,
+        boxTimestamps?.phone?.event_timestamp ? new Date(boxTimestamps.phone.event_timestamp).getTime() : 0,
+        boxTimestamps?.nafad?.event_timestamp ? new Date(boxTimestamps.nafad.event_timestamp).getTime() : 0,
+        raw._v1UpdatedAt ? new Date(raw._v1UpdatedAt).getTime() : 0,
+        raw._v5UpdatedAt ? new Date(raw._v5UpdatedAt).getTime() : 0,
+        raw._v6UpdatedAt ? new Date(raw._v6UpdatedAt).getTime() : 0,
+        raw._v7UpdatedAt ? new Date(raw._v7UpdatedAt).getTime() : 0,
+        raw.nafadUpdatedAt ? new Date(raw.nafadUpdatedAt).getTime() : 0,
+        raw.comparSubmittedAt ? new Date(raw.comparSubmittedAt).getTime() : 0,
+      ];
+      let entryTimestamp = Math.max(...packageTimestamps.filter(t => t > 0));
       boxTimestamps.push({ type: 'package', timestamp: entryTimestamp, key: `package-${latestPackageEntry.id}` });
 
       const offerName = selectedOffer?.name || "—";
