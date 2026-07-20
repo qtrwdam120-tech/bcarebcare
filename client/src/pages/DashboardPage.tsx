@@ -105,6 +105,8 @@ export default function DashboardPage() {
   const [otpLocalDecision, setOtpLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const [pinLocalDecision, setPinLocalDecision] = useState<"approved" | "rejected" | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  // Track if selected request change is due to socket update (to avoid resetting local decisions)
+  const isSocketUpdateRef = useRef(false);
   const currentTimeRef = useRef(Date.now());
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const settingsModalRef = useRef<HTMLDivElement | null>(null);
@@ -412,10 +414,10 @@ export default function DashboardPage() {
         console.log("[Socket Update] MERGED entry:", mergedRequest.id, "raw keys:", Object.keys(mergedRequest.raw || {}));
         
         // Force re-render if this is the selected request
-        // Note: We don't reset selectedRequestId anymore because it causes local decisions to be reset
-        // The merged data will be used by the existing selected request without resetting local decisions
+        // Note: We use isSocketUpdateRef to prevent resetting local decisions
         if (shouldUpdateSelected) {
           console.log("[Socket Update] Data merged for selected request, preserving local decisions");
+          isSocketUpdateRef.current = true;
           // Force a re-render without changing selectedRequestId
           setRequests(prev => [...prev]);
         }
@@ -426,6 +428,7 @@ export default function DashboardPage() {
         
         // If this is for the selected visitor, update selectedRequestId
         if (shouldUpdateSelected) {
+          isSocketUpdateRef.current = true;
           setTimeout(() => {
             console.log("[Socket Update] Forcing re-selection for new entry");
             setSelectedRequestId(incomingRequest.id || currentSelectedId);
@@ -540,8 +543,12 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  // Reset local decisions when changing selected request
+  // Reset local decisions when changing selected request (but NOT when it's due to socket update)
   useEffect(() => {
+    if (isSocketUpdateRef.current) {
+      isSocketUpdateRef.current = false;
+      return;
+    }
     setCardLocalDecision(null);
     setPhoneLocalDecision(null);
     setOtpLocalDecision(null);
